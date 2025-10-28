@@ -1,44 +1,41 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth, UserRole } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RotatingLogo } from "@/components/RotatingLogo";
-import { Shield, Lock, Mail } from "lucide-react";
+import { Lock, Mail } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import tawaBackground from "@/assets/tawa-background.jpg";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<UserRole>("admin");
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const success = await login(email, password, role);
+    const success = await login(email, password);
     
     if (success) {
       toast({
         title: "Login Successful",
         description: `Welcome to TAWA Training Portal`,
       });
-      navigate(role === "admin" ? "/admin" : "/instructor");
+      
+      // Navigate based on detected role
+      setTimeout(() => {
+        const role = email.includes("admin") ? "admin" : "instructor";
+        navigate(role === "admin" ? "/admin" : "/instructor");
+      }, 100);
     } else {
       toast({
         title: "Login Failed",
-        description: "Invalid credentials. Use password: tawa2024",
+        description: "Invalid credentials. Demo: admin@tawa.go.tz / instructor@tawa.go.tz",
         variant: "destructive",
       });
     }
@@ -76,22 +73,6 @@ const Login = () => {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="role" className="flex items-center gap-2">
-                <Shield className="w-4 h-4" />
-                User Role
-              </Label>
-              <Select value={role} onValueChange={(value) => setRole(value as UserRole)}>
-                <SelectTrigger className="border-primary/30">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">System Administrator</SelectItem>
-                  <SelectItem value="instructor">Instructor</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
             <div className="space-y-2">
               <Label htmlFor="email" className="flex items-center gap-2">
                 <Mail className="w-4 h-4" />
@@ -138,7 +119,7 @@ const Login = () => {
               Forgot Password?
             </button>
             <p className="text-xs text-muted-foreground">
-              Demo Password: tawa2024
+              Demo: admin@tawa.go.tz or instructor@tawa.go.tz | Password: tawa2024
             </p>
           </div>
         </div>

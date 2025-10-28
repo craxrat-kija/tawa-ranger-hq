@@ -12,7 +12,7 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string, role: UserRole) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
   isAuthenticated: boolean;
 }
@@ -22,12 +22,27 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
 
-  const login = async (email: string, password: string, role: UserRole): Promise<boolean> => {
-    // Mock authentication - in real app, this would call an API
-    if (password === "tawa2024" && (role === "admin" || role === "instructor")) {
+  const login = async (email: string, password: string): Promise<boolean> => {
+    // Mock authentication - role is determined by email domain for security
+    if (password === "tawa2024") {
+      // Determine role based on email pattern (in real app, this comes from backend)
+      let role: UserRole;
+      let name: string;
+      
+      if (email.includes("admin")) {
+        role = "admin";
+        name = "System Administrator";
+      } else if (email.includes("instructor") || email.includes("teacher")) {
+        role = "instructor";
+        name = "Instructor";
+      } else {
+        role = "trainee";
+        name = "Trainee";
+      }
+      
       const mockUser: User = {
         id: Math.random().toString(36).substr(2, 9),
-        name: role === "admin" ? "Admin User" : "Instructor Name",
+        name,
         email,
         role,
       };
