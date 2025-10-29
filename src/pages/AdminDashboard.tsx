@@ -11,6 +11,8 @@ import Timetable from "./Timetable";
 import Reports from "./Reports";
 import Instructors from "./Instructors";
 import ChatBoard from "./ChatBoard";
+import RegisterUsers from "./RegisterUsers";
+import Courses from "./Courses";
 import {
   Users,
   BookOpen,
@@ -42,7 +44,8 @@ const AdminDashboard = () => {
   };
 
   const menuItems = [
-    { icon: Users, label: "Users", path: "/admin" },
+    { icon: Users, label: "Dashboard", path: "/admin" },
+    { icon: Users, label: "Register Users", path: "/admin/users" },
     { icon: BookOpen, label: "Courses", path: "/admin/courses" },
     { icon: Upload, label: "Materials", path: "/admin/materials" },
     { icon: Image, label: "Gallery", path: "/admin/gallery" },
@@ -130,6 +133,8 @@ const AdminDashboard = () => {
         <div className="p-6">
           <Routes>
             <Route path="/" element={<DashboardHome />} />
+            <Route path="/users" element={<RegisterUsers />} />
+            <Route path="/courses" element={<Courses />} />
             <Route path="/materials" element={<Materials />} />
             <Route path="/gallery" element={<Gallery />} />
             <Route path="/timetable" element={<Timetable />} />

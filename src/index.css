@@ -27,9 +27,9 @@ All colors MUST be HSL.
     --secondary: 45 32% 65%;
     --secondary-foreground: 120 30% 15%;
 
-    /* Gold Accent */
-    --accent: 45 75% 55%;
-    --accent-foreground: 120 30% 15%;
+    /* Green Accent */
+    --accent: 120 45% 45%;
+    --accent-foreground: 0 0% 100%;
     
     --muted: 45 20% 90%;
     --muted-foreground: 120 15% 40%;
@@ -91,8 +91,8 @@ All colors MUST be HSL.
     --secondary: 45 25% 35%;
     --secondary-foreground: 0 0% 95%;
 
-    --accent: 45 75% 55%;
-    --accent-foreground: 120 30% 8%;
+    --accent: 120 50% 50%;
+    --accent-foreground: 0 0% 100%;
 
     --muted: 120 20% 20%;
     --muted-foreground: 120 10% 65%;

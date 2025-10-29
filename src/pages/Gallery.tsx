@@ -4,6 +4,15 @@ import { Card } from "@/components/ui/card";
 import { Upload, Trash2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import trainingGroup1 from "@/assets/gallery/training-group-1.jpg";
+import traineePortrait from "@/assets/gallery/trainee-portrait.jpg";
+import trainingGroup2 from "@/assets/gallery/training-group-2.jpg";
+import fieldTraining from "@/assets/gallery/field-training.jpg";
+import instructorSession from "@/assets/gallery/instructor-session.jpg";
+import patrolTraining1 from "@/assets/gallery/patrol-training-1.jpg";
+import armedTraining1 from "@/assets/gallery/armed-training-1.jpg";
+import armedTraining2 from "@/assets/gallery/armed-training-2.jpg";
+import patrolTraining2 from "@/assets/gallery/patrol-training-2.jpg";
 
 const Gallery = () => {
   const { user } = useAuth();
@@ -11,12 +20,15 @@ const Gallery = () => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   const [images, setImages] = useState([
-    { id: 1, url: "https://images.unsplash.com/photo-1622666522125-c90c8d64b2bb?w=400", title: "Parade Training", date: "2024-01-15" },
-    { id: 2, url: "https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=400", title: "Field Exercise", date: "2024-01-20" },
-    { id: 3, url: "https://images.unsplash.com/photo-1509021436665-8f0371143a69?w=400", title: "Weapons Training", date: "2024-02-01" },
-    { id: 4, url: "https://images.unsplash.com/photo-1612178537253-bccd437b730e?w=400", title: "Team Building", date: "2024-02-10" },
-    { id: 5, url: "https://images.unsplash.com/photo-1541872703-74c5e44368f9?w=400", title: "Graduation Ceremony", date: "2024-02-15" },
-    { id: 6, url: "https://images.unsplash.com/photo-1587876931567-564ce588bfbd?w=400", title: "Map Reading Session", date: "2024-02-20" },
+    { id: 1, url: trainingGroup1, title: "Training Group Formation", date: "2024-10-26" },
+    { id: 2, url: traineePortrait, title: "Trainee Portrait", date: "2024-10-26" },
+    { id: 3, url: trainingGroup2, title: "Group Training Session", date: "2024-10-26" },
+    { id: 4, url: fieldTraining, title: "Field Training Exercise", date: "2024-10-26" },
+    { id: 5, url: instructorSession, title: "Instructor Session", date: "2024-10-26" },
+    { id: 6, url: patrolTraining1, title: "Patrol Training", date: "2024-10-26" },
+    { id: 7, url: armedTraining1, title: "Armed Combat Training", date: "2024-10-26" },
+    { id: 8, url: armedTraining2, title: "Tactical Positioning", date: "2024-10-26" },
+    { id: 9, url: patrolTraining2, title: "Advanced Patrol Tactics", date: "2024-10-26" },
   ]);
 
   const handleUpload = () => {
