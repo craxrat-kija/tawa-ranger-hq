@@ -29,8 +29,13 @@ const Login = () => {
       
       // Navigate based on detected role
       setTimeout(() => {
-        const role = email.includes("admin") ? "admin" : "instructor";
-        navigate(role === "admin" ? "/admin" : "/instructor");
+        let role = "instructor"; // default
+        if (email.includes("admin")) {
+          role = "admin";
+        } else if (email.includes("doctor") || email.includes("doc")) {
+          role = "doctor";
+        }
+        navigate(`/${role}`);
       }, 100);
     } else {
       toast({
@@ -119,7 +124,7 @@ const Login = () => {
               Forgot Password?
             </button>
             <p className="text-xs text-muted-foreground">
-              Demo: admin@tawa.go.tz or instructor@tawa.go.tz | Password: tawa2024
+              Demo: admin@tawa.go.tz, instructor@tawa.go.tz, or doctor@tawa.go.tz | Password: tawa2024
             </p>
           </div>
         </div>

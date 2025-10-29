@@ -55,8 +55,8 @@ const DoctorDashboard = () => {
             <div className="flex items-center gap-3">
               <RotatingLogo className="w-12 h-12" />
               <div>
-                <h2 className="text-white font-bold text-lg">TAWA</h2>
-                <p className="text-white/70 text-xs">Medical Portal</p>
+                <h2 className="text-accent font-bold text-lg">TAWA</h2>
+                <p className="text-accent/70 text-xs">Medical Portal</p>
               </div>
             </div>
           </div>
@@ -67,7 +67,7 @@ const DoctorDashboard = () => {
               <Link
                 key={idx}
                 to={item.path}
-                className="flex items-center gap-3 px-4 py-3 text-white hover:bg-white/20 rounded-lg transition-colors group"
+                className="flex items-center gap-3 px-4 py-3 text-accent hover:bg-accent/20 rounded-lg transition-colors group"
               >
                 <item.icon className="w-5 h-5 group-hover:scale-110 transition-transform" />
                 <span className="font-medium">{item.label}</span>
@@ -76,14 +76,14 @@ const DoctorDashboard = () => {
           </nav>
 
           {/* User Section */}
-          <div className="p-4 border-t border-white/20">
-            <div className="mb-3 text-white">
+          <div className="p-4 border-t border-accent/20">
+            <div className="mb-3 text-accent">
               <p className="font-semibold text-sm">{user?.name}</p>
-              <p className="text-xs text-white/70">{user?.email}</p>
+              <p className="text-xs text-accent/70">{user?.email}</p>
             </div>
             <Button
               variant="ghost"
-              className="w-full text-white hover:bg-white/20"
+              className="w-full text-accent hover:bg-accent/20"
               onClick={handleLogout}
             >
               <LogOut className="w-4 h-4 mr-2" />
