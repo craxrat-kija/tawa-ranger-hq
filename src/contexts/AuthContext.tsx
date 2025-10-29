@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, ReactNode } from "react";
 
-export type UserRole = "admin" | "instructor" | "trainee";
+export type UserRole = "admin" | "instructor" | "trainee" | "doctor";
 
 interface User {
   id: string;
@@ -32,6 +32,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (email.includes("admin")) {
         role = "admin";
         name = "System Administrator";
+      } else if (email.includes("doctor") || email.includes("doc")) {
+        role = "doctor";
+        name = "Medical Officer";
       } else if (email.includes("instructor") || email.includes("teacher")) {
         role = "instructor";
         name = "Instructor";

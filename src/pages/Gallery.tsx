@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Upload, Image as ImageIcon } from "lucide-react";
+import { Upload, Trash2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 
@@ -10,19 +10,27 @@ const Gallery = () => {
   const { toast } = useToast();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
-  const mockImages = [
+  const [images, setImages] = useState([
     { id: 1, url: "https://images.unsplash.com/photo-1622666522125-c90c8d64b2bb?w=400", title: "Parade Training", date: "2024-01-15" },
     { id: 2, url: "https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=400", title: "Field Exercise", date: "2024-01-20" },
     { id: 3, url: "https://images.unsplash.com/photo-1509021436665-8f0371143a69?w=400", title: "Weapons Training", date: "2024-02-01" },
     { id: 4, url: "https://images.unsplash.com/photo-1612178537253-bccd437b730e?w=400", title: "Team Building", date: "2024-02-10" },
     { id: 5, url: "https://images.unsplash.com/photo-1541872703-74c5e44368f9?w=400", title: "Graduation Ceremony", date: "2024-02-15" },
     { id: 6, url: "https://images.unsplash.com/photo-1587876931567-564ce588bfbd?w=400", title: "Map Reading Session", date: "2024-02-20" },
-  ];
+  ]);
 
   const handleUpload = () => {
     toast({
       title: "Upload Photo",
       description: "Photo upload functionality will open here",
+    });
+  };
+
+  const handleDelete = (imageId: number) => {
+    setImages(images.filter(img => img.id !== imageId));
+    toast({
+      title: "Image Deleted",
+      description: "Image has been removed from gallery",
     });
   };
 
@@ -43,13 +51,15 @@ const Gallery = () => {
 
       {/* Gallery Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {mockImages.map((image) => (
+        {images.map((image) => (
           <Card 
             key={image.id} 
-            className="overflow-hidden cursor-pointer hover:shadow-xl transition-all group"
-            onClick={() => setSelectedImage(image.url)}
+            className="overflow-hidden hover:shadow-xl transition-all group relative"
           >
-            <div className="relative aspect-square overflow-hidden">
+            <div 
+              className="relative aspect-square overflow-hidden cursor-pointer"
+              onClick={() => setSelectedImage(image.url)}
+            >
               <img 
                 src={image.url} 
                 alt={image.title}
@@ -62,6 +72,19 @@ const Gallery = () => {
                 </div>
               </div>
             </div>
+            {user?.role === "admin" && (
+              <Button
+                variant="destructive"
+                size="icon"
+                className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDelete(image.id);
+                }}
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            )}
           </Card>
         ))}
       </div>

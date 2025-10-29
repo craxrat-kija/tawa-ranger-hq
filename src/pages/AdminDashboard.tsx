@@ -61,7 +61,7 @@ const AdminDashboard = () => {
         } w-64 bg-cover bg-center`}
         style={{ backgroundImage: `url(${tawaBackground})` }}
       >
-        <div className="absolute inset-0 bg-gradient-military/95" />
+        <div className="absolute inset-0 bg-gradient-military/70 backdrop-blur-sm" />
         <div className="relative h-full flex flex-col">
           {/* Logo Section */}
           <div className="p-6 border-b border-white/20">

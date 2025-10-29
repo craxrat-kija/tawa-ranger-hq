@@ -8,6 +8,7 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import Login from "./pages/Login";
 import AdminDashboard from "./pages/AdminDashboard";
 import InstructorDashboard from "./pages/InstructorDashboard";
+import DoctorDashboard from "./pages/DoctorDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -49,6 +50,14 @@ const App = () => (
                 element={
                   <ProtectedRoute allowedRoles={["instructor"]}>
                     <InstructorDashboard />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/doctor/*" 
+                element={
+                  <ProtectedRoute allowedRoles={["doctor"]}>
+                    <DoctorDashboard />
                   </ProtectedRoute>
                 } 
               />

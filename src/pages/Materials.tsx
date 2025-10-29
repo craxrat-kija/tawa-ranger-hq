@@ -2,22 +2,26 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Upload, Download, FileText, Video, Image, File, Search } from "lucide-react";
+import { Upload, Download, FileText, Video, Image, File, Search, Trash2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Materials = () => {
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSubject, setSelectedSubject] = useState("all");
   const { toast } = useToast();
 
-  const mockMaterials = [
-    { id: 1, name: "Parade Training Manual.pdf", type: "pdf", subject: "Parade", size: "2.4 MB", date: "2024-01-15" },
-    { id: 2, name: "Weaponry Safety Video.mp4", type: "video", subject: "Weaponry", size: "45 MB", date: "2024-01-20" },
-    { id: 3, name: "Field Craft Techniques.docx", type: "document", subject: "Field Craft", size: "1.2 MB", date: "2024-02-01" },
-    { id: 4, name: "First Aid Guidelines.pdf", type: "pdf", subject: "First Aid", size: "3.1 MB", date: "2024-02-10" },
-    { id: 5, name: "Map Reading Tutorial.pdf", type: "pdf", subject: "Maps", size: "5.5 MB", date: "2024-02-15" },
-  ];
+  const [materials, setMaterials] = useState([
+    { id: 1, name: "Field_Maps.pdf", type: "pdf", subject: "Maps", size: "1.8 MB", date: "2025-01-15", url: "/materials/Field_Maps.pdf" },
+    { id: 2, name: "Introduction_GIS.pdf", type: "pdf", subject: "Maps", size: "2.1 MB", date: "2025-01-16", url: "/materials/Introduction_GIS.pdf" },
+    { id: 3, name: "Introduction_GPS.pdf", type: "pdf", subject: "Maps", size: "1.5 MB", date: "2025-01-17", url: "/materials/Introduction_GPS.pdf" },
+    { id: 4, name: "MAP_OF_FORT_IKOMA_AREA.pdf", type: "pdf", subject: "Maps", size: "3.2 MB", date: "2025-01-18", url: "/materials/MAP_OF_FORT_IKOMA_AREA.pdf" },
+    { id: 5, name: "Patrol_Maps.pdf", type: "pdf", subject: "Patrol", size: "2.8 MB", date: "2025-01-19", url: "/materials/Patrol_Maps.pdf" },
+    { id: 6, name: "Weapon_Training.ppt", type: "presentation", subject: "Weaponry", size: "8.5 MB", date: "2025-01-20", url: "/materials/Weapon_Training.ppt" },
+    { id: 7, name: "Weaponry_Training_Bilingual.pptx", type: "presentation", subject: "Weaponry", size: "12.3 MB", date: "2025-01-21", url: "/materials/Weaponry_Training_Bilingual.pptx" },
+  ]);
 
   const getFileIcon = (type: string) => {
     switch (type) {
@@ -28,19 +32,36 @@ const Materials = () => {
         return <Video className="w-8 h-8 text-blue-500" />;
       case "image":
         return <Image className="w-8 h-8 text-green-500" />;
+      case "presentation":
+        return <FileText className="w-8 h-8 text-orange-500" />;
       default:
         return <File className="w-8 h-8 text-gray-500" />;
     }
   };
 
   const handleDownload = (material: any) => {
+    const link = document.createElement('a');
+    link.href = material.url;
+    link.download = material.name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
     toast({
       title: "Download Started",
       description: `Downloading ${material.name}`,
     });
   };
 
-  const filteredMaterials = mockMaterials.filter(material => {
+  const handleDelete = (materialId: number) => {
+    setMaterials(materials.filter(m => m.id !== materialId));
+    toast({
+      title: "Material Deleted",
+      description: "Material has been removed successfully",
+    });
+  };
+
+  const filteredMaterials = materials.filter(material => {
     const matchesSearch = material.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesSubject = selectedSubject === "all" || material.subject === selectedSubject;
     return matchesSearch && matchesSubject;
@@ -102,14 +123,25 @@ const Materials = () => {
                 <span>{material.size}</span>
                 <span>{material.date}</span>
               </div>
-              <Button 
-                onClick={() => handleDownload(material)} 
-                className="w-full"
-                variant="outline"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Download
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  onClick={() => handleDownload(material)} 
+                  className="flex-1"
+                  variant="outline"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download
+                </Button>
+                {user?.role === "admin" && (
+                  <Button 
+                    onClick={() => handleDelete(material.id)} 
+                    variant="destructive"
+                    size="icon"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
             </CardContent>
           </Card>
         ))}
