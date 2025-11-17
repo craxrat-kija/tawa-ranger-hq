@@ -5,12 +5,22 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Send, MessageSquare } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
+
+interface Message {
+  id: number;
+  sender: string;
+  message: string;
+  time: string;
+  avatar: string;
+}
 
 const ChatBoard = () => {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [message, setMessage] = useState("");
 
-  const mockMessages = [
+  const [messages, setMessages] = useState<Message[]>([
     {
       id: 1,
       sender: "CPT. Mwangi",
@@ -32,12 +42,25 @@ const ChatBoard = () => {
       time: "2:45 PM",
       avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Ahmed"
     },
-  ];
+  ]);
 
   const handleSendMessage = () => {
     if (message.trim()) {
-      console.log("Sending message:", message);
+      const newMessage: Message = {
+        id: messages.length + 1,
+        sender: user?.name || "User",
+        message: message.trim(),
+        time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || 'User'}`
+      };
+      
+      setMessages([...messages, newMessage]);
       setMessage("");
+      
+      toast({
+        title: "Message Sent",
+        description: "Your message has been posted to the board",
+      });
     }
   };
 
@@ -60,7 +83,7 @@ const ChatBoard = () => {
         <CardContent className="flex-1 flex flex-col">
           {/* Messages Area */}
           <div className="flex-1 overflow-y-auto space-y-4 mb-4 p-4 bg-accent/5 rounded-lg">
-            {mockMessages.map((msg) => (
+            {messages.map((msg) => (
               <div key={msg.id} className="flex gap-3">
                 <Avatar>
                   <AvatarImage src={msg.avatar} />

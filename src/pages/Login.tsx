@@ -12,7 +12,7 @@ import tawaBackground from "@/assets/tawa-background.jpg";
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const { login, user } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 

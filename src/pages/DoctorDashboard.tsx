@@ -1,5 +1,6 @@
 import { Routes, Route, Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePatients } from "@/contexts/PatientContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,6 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { RotatingLogo } from "@/components/RotatingLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Chatbot } from "@/components/Chatbot";
+import ViewTrainees from "./ViewTrainees";
+import PatientManagement from "./PatientManagement";
 import {
   Users,
   LogOut,
@@ -35,7 +38,9 @@ const DoctorDashboard = () => {
 
   const menuItems = [
     { icon: Heart, label: "Dashboard", path: "/doctor" },
-    { icon: UserPlus, label: "Register User", path: "/doctor/register" },
+    { icon: Users, label: "View Trainees", path: "/doctor/trainees" },
+    { icon: UserPlus, label: "Register Patient", path: "/doctor/register" },
+    { icon: FileHeart, label: "Patient Management", path: "/doctor/patients" },
     { icon: FileHeart, label: "Health Records", path: "/doctor/records" },
   ];
 
@@ -45,18 +50,16 @@ const DoctorDashboard = () => {
       <aside
         className={`fixed lg:static inset-y-0 left-0 z-50 transition-transform duration-300 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-        } w-64 bg-cover bg-center`}
-        style={{ backgroundImage: `url(${tawaBackground})` }}
+        } w-64 bg-slate-900`}
       >
-        <div className="absolute inset-0 bg-gradient-military/70 backdrop-blur-sm" />
         <div className="relative h-full flex flex-col">
           {/* Logo Section */}
-          <div className="p-6 border-b border-white/20">
+          <div className="p-6 border-b border-border">
             <div className="flex items-center gap-3">
               <RotatingLogo className="w-12 h-12" />
               <div>
-                <h2 className="text-accent font-bold text-lg">TAWA</h2>
-                <p className="text-accent/70 text-xs">Medical Portal</p>
+                <h2 className="text-white font-bold text-xl">TAWA</h2>
+                <p className="text-white/80 text-sm">Medical Portal</p>
               </div>
             </div>
           </div>
@@ -67,26 +70,26 @@ const DoctorDashboard = () => {
               <Link
                 key={idx}
                 to={item.path}
-                className="flex items-center gap-3 px-4 py-3 text-accent hover:bg-accent/20 rounded-lg transition-colors group"
+                className="flex items-center gap-3 px-4 py-3 text-white hover:bg-white/20 rounded-lg transition-colors group"
               >
-                <item.icon className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                <span className="font-medium">{item.label}</span>
+                <item.icon className="w-6 h-6 group-hover:scale-110 transition-transform" />
+                <span className="font-medium text-base">{item.label}</span>
               </Link>
             ))}
           </nav>
 
           {/* User Section */}
-          <div className="p-4 border-t border-accent/20">
-            <div className="mb-3 text-accent">
-              <p className="font-semibold text-sm">{user?.name}</p>
-              <p className="text-xs text-accent/70">{user?.email}</p>
+          <div className="p-4 border-t border-border">
+            <div className="mb-3 text-white">
+              <p className="font-semibold text-base">{user?.name}</p>
+              <p className="text-sm text-white/80">{user?.email}</p>
             </div>
             <Button
               variant="ghost"
-              className="w-full text-accent hover:bg-accent/20"
+              className="w-full text-white hover:bg-white/20"
               onClick={handleLogout}
             >
-              <LogOut className="w-4 h-4 mr-2" />
+              <LogOut className="w-5 h-5 mr-2" />
               Logout
             </Button>
           </div>
@@ -96,22 +99,27 @@ const DoctorDashboard = () => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="bg-card border-b border-border p-4 flex items-center justify-between">
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="lg:hidden p-2 hover:bg-accent rounded-lg"
-          >
-            {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
-          <h1 className="text-2xl font-bold text-primary">Medical Officer Portal</h1>
-          <ThemeToggle />
+        <header className="bg-cover bg-center border-b border-border p-4 flex items-center justify-between" style={{ backgroundImage: `url(${tawaBackground})` }}>
+          <div className="absolute inset-0 bg-gradient-military/70" />
+          <div className="relative flex items-center justify-between w-full">
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="lg:hidden p-2 hover:bg-accent rounded-lg"
+            >
+              {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
+            <h1 className="text-3xl font-bold text-white">Medical Officer Portal</h1>
+            <ThemeToggle />
+          </div>
         </header>
 
         {/* Content Area */}
         <main className="flex-1 overflow-y-auto p-6">
           <Routes>
             <Route path="/" element={<DoctorHome />} />
+            <Route path="/trainees" element={<ViewTrainees />} />
             <Route path="/register" element={<RegisterUser />} />
+            <Route path="/patients" element={<PatientManagement />} />
             <Route path="/records" element={<HealthRecords />} />
           </Routes>
         </main>
@@ -173,17 +181,23 @@ const DoctorHome = () => {
           <CardTitle>Quick Actions</CardTitle>
           <CardDescription>Common medical tasks</CardDescription>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Link to="/doctor/register">
             <Button className="w-full h-20 text-lg bg-gradient-military">
               <UserPlus className="w-6 h-6 mr-2" />
-              Register New User
+              Register Patient
+            </Button>
+          </Link>
+          <Link to="/doctor/patients">
+            <Button variant="outline" className="w-full h-20 text-lg">
+              <FileHeart className="w-6 h-6 mr-2" />
+              Manage Patients
             </Button>
           </Link>
           <Link to="/doctor/records">
             <Button variant="outline" className="w-full h-20 text-lg">
               <FileHeart className="w-6 h-6 mr-2" />
-              View Health Records
+              Health Records
             </Button>
           </Link>
         </CardContent>
@@ -195,6 +209,8 @@ const DoctorHome = () => {
 // Register User Component
 const RegisterUser = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const { addPatient } = usePatients();
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
@@ -207,48 +223,108 @@ const RegisterUser = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    toast({
-      title: "User Registered",
-      description: `${formData.fullName} has been registered successfully`,
-    });
-    setFormData({
-      fullName: "",
-      email: "",
-      phone: "",
-      bloodType: "",
-      allergies: "",
-      medicalHistory: "",
-      emergencyContact: "",
-    });
+    console.log("Form submitted", formData);
+    
+    if (!formData.fullName || !formData.email || !formData.phone || !formData.emergencyContact) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      console.log("Calling addPatient with data:", {
+        fullName: formData.fullName,
+        email: formData.email,
+      phone: formData.phone,
+        bloodType: formData.bloodType || "Unknown",
+        allergies: formData.allergies || "None",
+        medicalHistory: formData.medicalHistory || "None",
+        emergencyContact: formData.emergencyContact,
+      });
+
+      const newPatient = addPatient({
+        fullName: formData.fullName,
+        email: formData.email,
+        phone: formData.phone,
+        bloodType: formData.bloodType || "Unknown",
+        allergies: formData.allergies || "None",
+        medicalHistory: formData.medicalHistory || "None",
+        emergencyContact: formData.emergencyContact,
+      });
+
+      console.log("Patient added successfully:", newPatient);
+
+      toast({
+        title: "Patient Registered",
+        description: `${formData.fullName} has been registered successfully`,
+      });
+      
+      setFormData({
+        fullName: "",
+        email: "",
+        phone: "",
+        bloodType: "",
+        allergies: "",
+        medicalHistory: "",
+        emergencyContact: "",
+      });
+
+      // Navigate to patient management after a short delay
+      setTimeout(() => {
+        navigate("/doctor/patients");
+      }, 1000);
+    } catch (error) {
+      console.error("Error registering patient:", error);
+      toast({
+        title: "Registration Failed",
+        description: error instanceof Error ? error.message : "There was an error registering the patient. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleInputChange = (field: string, value: string) => {
+    console.log(`Updating ${field}:`, value);
+    setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   return (
-    <div className="max-w-2xl">
-      <Card>
+    <div className="max-w-2xl mx-auto">
+      <Card className="relative z-10">
         <CardHeader>
-          <CardTitle className="text-2xl">Register New User</CardTitle>
-          <CardDescription>Add trainee health information and details</CardDescription>
+          <CardTitle className="text-2xl">Register New Patient</CardTitle>
+          <CardDescription>Add patient health information and details</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="fullName">Full Name *</Label>
                 <Input
                   id="fullName"
+                  name="fullName"
                   value={formData.fullName}
-                  onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                  onChange={(e) => handleInputChange('fullName', e.target.value)}
+                  onInput={(e) => handleInputChange('fullName', (e.target as HTMLInputElement).value)}
+                  placeholder="Enter full name"
                   required
+                  autoComplete="name"
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email *</Label>
                 <Input
                   id="email"
+                  name="email"
                   type="email"
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  onChange={(e) => handleInputChange('email', e.target.value)}
+                  placeholder="Enter email address"
                   required
+                  autoComplete="email"
                 />
               </div>
             </div>
@@ -258,19 +334,26 @@ const RegisterUser = () => {
                 <Label htmlFor="phone">Phone Number *</Label>
                 <Input
                   id="phone"
+                  name="phone"
                   type="tel"
                   value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  onChange={(e) => handleInputChange('phone', e.target.value)}
+                  onInput={(e) => handleInputChange('phone', (e.target as HTMLInputElement).value)}
+                  placeholder="Enter phone number"
                   required
+                  autoComplete="tel"
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="bloodType">Blood Type</Label>
                 <Input
                   id="bloodType"
+                  name="bloodType"
                   value={formData.bloodType}
-                  onChange={(e) => setFormData({ ...formData, bloodType: e.target.value })}
+                  onChange={(e) => handleInputChange('bloodType', e.target.value)}
+                  onInput={(e) => handleInputChange('bloodType', (e.target as HTMLInputElement).value)}
                   placeholder="e.g., O+, A-, AB+"
+                  autoComplete="off"
                 />
               </div>
             </div>
@@ -279,8 +362,10 @@ const RegisterUser = () => {
               <Label htmlFor="allergies">Known Allergies</Label>
               <Textarea
                 id="allergies"
+                name="allergies"
                 value={formData.allergies}
-                onChange={(e) => setFormData({ ...formData, allergies: e.target.value })}
+                onChange={(e) => handleInputChange('allergies', e.target.value)}
+                onInput={(e) => handleInputChange('allergies', (e.target as HTMLTextAreaElement).value)}
                 placeholder="List any known allergies..."
                 rows={3}
               />
@@ -290,8 +375,10 @@ const RegisterUser = () => {
               <Label htmlFor="medicalHistory">Medical History</Label>
               <Textarea
                 id="medicalHistory"
+                name="medicalHistory"
                 value={formData.medicalHistory}
-                onChange={(e) => setFormData({ ...formData, medicalHistory: e.target.value })}
+                onChange={(e) => handleInputChange('medicalHistory', e.target.value)}
+                onInput={(e) => handleInputChange('medicalHistory', (e.target as HTMLTextAreaElement).value)}
                 placeholder="Previous conditions, surgeries, medications..."
                 rows={4}
               />
@@ -301,10 +388,13 @@ const RegisterUser = () => {
               <Label htmlFor="emergencyContact">Emergency Contact *</Label>
               <Input
                 id="emergencyContact"
+                name="emergencyContact"
                 value={formData.emergencyContact}
-                onChange={(e) => setFormData({ ...formData, emergencyContact: e.target.value })}
+                onChange={(e) => handleInputChange('emergencyContact', e.target.value)}
+                onInput={(e) => handleInputChange('emergencyContact', (e.target as HTMLInputElement).value)}
                 placeholder="Name and phone number"
                 required
+                autoComplete="off"
               />
             </div>
 

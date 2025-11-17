@@ -1,7 +1,10 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Upload, Trash2 } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Upload, Trash2, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import trainingGroup1 from "@/assets/gallery/training-group-1.jpg";
@@ -14,12 +17,25 @@ import armedTraining1 from "@/assets/gallery/armed-training-1.jpg";
 import armedTraining2 from "@/assets/gallery/armed-training-2.jpg";
 import patrolTraining2 from "@/assets/gallery/patrol-training-2.jpg";
 
+interface ImageItem {
+  id: number;
+  url: string;
+  title: string;
+  date: string;
+  file?: File;
+}
+
 const Gallery = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [uploadData, setUploadData] = useState({ title: "", file: null as File | null });
 
-  const [images, setImages] = useState([
+  const [images, setImages] = useState<ImageItem[]>([
     { id: 1, url: trainingGroup1, title: "Training Group Formation", date: "2024-10-26" },
     { id: 2, url: traineePortrait, title: "Trainee Portrait", date: "2024-10-26" },
     { id: 3, url: trainingGroup2, title: "Group Training Session", date: "2024-10-26" },
@@ -31,11 +47,66 @@ const Gallery = () => {
     { id: 9, url: patrolTraining2, title: "Advanced Patrol Tactics", date: "2024-10-26" },
   ]);
 
-  const handleUpload = () => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.type.startsWith('image/')) {
+        setUploadData({ ...uploadData, file });
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setPreview(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        toast({
+          title: "Invalid File",
+          description: "Please select an image file",
+          variant: "destructive",
+        });
+      }
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!uploadData.file || !uploadData.title.trim()) {
+      toast({
+        title: "Missing Information",
+        description: "Please select an image and enter a title",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUploading(true);
+    
+    // Simulate upload delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Create a preview URL from the file
+    const previewUrl = preview || URL.createObjectURL(uploadData.file);
+    
+    const newImage: ImageItem = {
+      id: images.length + 1,
+      url: previewUrl,
+      title: uploadData.title,
+      date: new Date().toISOString().split('T')[0],
+      file: uploadData.file,
+    };
+
+    setImages([...images, newImage]);
+    setShowUploadDialog(false);
+    setUploadData({ title: "", file: null });
+    setPreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+    
     toast({
-      title: "Upload Photo",
-      description: "Photo upload functionality will open here",
+      title: "Photo Uploaded",
+      description: `${uploadData.title} has been added to the gallery`,
     });
+    
+    setUploading(false);
   };
 
   const handleDelete = (imageId: number) => {
@@ -54,12 +125,82 @@ const Gallery = () => {
           <p className="text-muted-foreground">Training moments and achievements</p>
         </div>
         {user?.role === "admin" && (
-          <Button onClick={handleUpload} className="bg-gradient-military">
+          <Button 
+            onClick={() => setShowUploadDialog(true)} 
+            className="bg-gradient-military"
+          >
             <Upload className="w-4 h-4 mr-2" />
             Upload Photos
           </Button>
         )}
       </div>
+
+      {/* Upload Dialog */}
+      <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Upload New Photo</DialogTitle>
+            <DialogDescription>
+              Add a new photo to the gallery. Select an image and provide a title.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="image-upload">Select Image</Label>
+              <Input
+                id="image-upload"
+                type="file"
+                accept="image/*"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                className="cursor-pointer"
+              />
+              {preview && (
+                <div className="mt-4">
+                  <img 
+                    src={preview} 
+                    alt="Preview" 
+                    className="max-w-full h-48 object-contain rounded-lg border"
+                  />
+                </div>
+              )}
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="image-title">Photo Title</Label>
+              <Input
+                id="image-title"
+                value={uploadData.title}
+                onChange={(e) => setUploadData({ ...uploadData, title: e.target.value })}
+                placeholder="Enter photo title"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setShowUploadDialog(false);
+                  setUploadData({ title: "", file: null });
+                  setPreview(null);
+                  if (fileInputRef.current) {
+                    fileInputRef.current.value = "";
+                  }
+                }}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleUpload} 
+                className="bg-gradient-military"
+                disabled={uploading}
+              >
+                {uploading ? "Uploading..." : "Upload Photo"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Gallery Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -107,10 +248,19 @@ const Gallery = () => {
           className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
           onClick={() => setSelectedImage(null)}
         >
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute top-4 right-4 text-white hover:bg-white/20"
+            onClick={() => setSelectedImage(null)}
+          >
+            <X className="w-6 h-6" />
+          </Button>
           <img 
             src={selectedImage} 
             alt="Full size" 
             className="max-w-full max-h-full object-contain"
+            onClick={(e) => e.stopPropagation()}
           />
         </div>
       )}

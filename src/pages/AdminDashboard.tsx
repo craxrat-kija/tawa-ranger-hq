@@ -31,6 +31,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
 import tawaBackground from "@/assets/tawa-background.jpg";
 
 const AdminDashboard = () => {
@@ -45,7 +46,8 @@ const AdminDashboard = () => {
 
   const menuItems = [
     { icon: Users, label: "Dashboard", path: "/admin" },
-    { icon: Users, label: "Register Users", path: "/admin/users" },
+    { icon: Users, label: "All Users", path: "/admin/users" },
+    { icon: Users, label: "Register Users", path: "/admin/users?action=register" },
     { icon: BookOpen, label: "Courses", path: "/admin/courses" },
     { icon: Upload, label: "Materials", path: "/admin/materials" },
     { icon: Image, label: "Gallery", path: "/admin/gallery" },
@@ -61,18 +63,16 @@ const AdminDashboard = () => {
       <aside
         className={`fixed lg:static inset-y-0 left-0 z-50 transition-transform duration-300 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-        } w-64 bg-cover bg-center`}
-        style={{ backgroundImage: `url(${tawaBackground})` }}
+        } w-64 bg-slate-900`}
       >
-        <div className="absolute inset-0 bg-gradient-military/70 backdrop-blur-sm" />
         <div className="relative h-full flex flex-col">
           {/* Logo Section */}
-          <div className="p-6 border-b border-white/20">
+          <div className="p-6 border-b border-border">
             <div className="flex items-center gap-3">
               <RotatingLogo className="w-12 h-12" />
               <div>
-                <h2 className="text-accent font-bold text-lg">TAWA</h2>
-                <p className="text-accent/70 text-xs">Admin Portal</p>
+                <h2 className="text-white font-bold text-xl">TAWA</h2>
+                <p className="text-white/80 text-sm">Admin Portal</p>
               </div>
             </div>
           </div>
@@ -83,26 +83,26 @@ const AdminDashboard = () => {
               <Link
                 key={idx}
                 to={item.path}
-                className="flex items-center gap-3 px-4 py-3 text-accent hover:bg-accent/20 rounded-lg transition-colors group"
+                className="flex items-center gap-3 px-4 py-3 text-white hover:bg-white/20 rounded-lg transition-colors group"
               >
-                <item.icon className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                <span className="font-medium">{item.label}</span>
+                <item.icon className="w-6 h-6 group-hover:scale-110 transition-transform" />
+                <span className="font-medium text-base">{item.label}</span>
               </Link>
             ))}
           </nav>
 
           {/* User Section */}
-          <div className="p-4 border-t border-accent/20">
-            <div className="mb-3 text-accent">
-              <p className="font-semibold text-sm">{user?.name}</p>
-              <p className="text-xs text-accent/70">{user?.email}</p>
+          <div className="p-4 border-t border-border">
+            <div className="mb-3 text-white">
+              <p className="font-semibold text-base">{user?.name}</p>
+              <p className="text-sm text-white/80">{user?.email}</p>
             </div>
             <Button
               variant="ghost"
-              className="w-full text-accent hover:bg-accent/20"
+              className="w-full text-white hover:bg-white/20"
               onClick={handleLogout}
             >
-              <LogOut className="w-4 h-4 mr-2" />
+              <LogOut className="w-5 h-5 mr-2" />
               Logout
             </Button>
           </div>
@@ -122,9 +122,10 @@ const AdminDashboard = () => {
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto">
         {/* Header */}
-        <header className="bg-card border-b border-border p-6 sticky top-0 z-10">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-primary">TAWA Admin Dashboard</h1>
+        <header className="bg-cover bg-center border-b border-border p-6 sticky top-0 z-10" style={{ backgroundImage: `url(${tawaBackground})` }}>
+          <div className="absolute inset-0 bg-gradient-military/70" />
+          <div className="relative flex items-center justify-between">
+            <h1 className="text-3xl font-bold text-white">TAWA Admin Dashboard</h1>
             <ThemeToggle />
           </div>
         </header>
@@ -140,6 +141,7 @@ const AdminDashboard = () => {
             <Route path="/timetable" element={<Timetable />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/instructors" element={<Instructors />} />
+            <Route path="/trainees" element={<RegisterUsers />} />
             <Route path="/chat" element={<ChatBoard />} />
           </Routes>
         </div>
@@ -153,6 +155,33 @@ const AdminDashboard = () => {
 // Dashboard Home Component
 const DashboardHome = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  
+  const handleQuickAction = (action: string) => {
+    switch(action) {
+      case "Register Users":
+        navigate("/admin/users");
+        break;
+      case "Manage Courses":
+        navigate("/admin/courses");
+        break;
+      case "Upload Materials":
+        navigate("/admin/materials");
+        break;
+      case "Create Timetable":
+        navigate("/admin/timetable");
+        break;
+      case "Generate Reports":
+        navigate("/admin/reports");
+        break;
+      case "Manage Gallery":
+        navigate("/admin/gallery");
+        break;
+      default:
+        break;
+    }
+  };
   
   return (
     <div className="space-y-8">
@@ -189,16 +218,17 @@ const DashboardHome = () => {
             { icon: FileText, label: "Generate Reports", color: "bg-red-500" },
             { icon: Image, label: "Manage Gallery", color: "bg-pink-500" },
           ].map((action, idx) => (
-            <div
+            <button
               key={idx}
-              className="group bg-card border border-border rounded-xl p-6 hover:shadow-xl transition-all hover:scale-105 animate-slide-up"
+              onClick={() => handleQuickAction(action.label)}
+              className="group bg-card border border-border rounded-xl p-6 hover:shadow-xl transition-all hover:scale-105 animate-slide-up text-left cursor-pointer"
               style={{ animationDelay: `${idx * 50}ms` }}
             >
               <div className={`${action.color} w-12 h-12 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
                 <action.icon className="w-6 h-6 text-white" />
               </div>
               <h4 className="font-semibold text-lg">{action.label}</h4>
-            </div>
+            </button>
           ))}
         </div>
       </div>

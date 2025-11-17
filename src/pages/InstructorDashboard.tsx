@@ -10,6 +10,7 @@ import Gallery from "./Gallery";
 import Timetable from "./Timetable";
 import Instructors from "./Instructors";
 import ChatBoard from "./ChatBoard";
+import ViewTrainees from "./ViewTrainees";
 import {
   Upload,
   Calendar,
@@ -24,6 +25,11 @@ import {
   Image,
 } from "lucide-react";
 import { useState } from "react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
 import tawaBackground from "@/assets/tawa-background.jpg";
 
 const InstructorDashboard = () => {
@@ -38,6 +44,7 @@ const InstructorDashboard = () => {
 
   const menuItems = [
     { icon: BookOpen, label: "My Courses", path: "/instructor" },
+    { icon: Users, label: "View Trainees", path: "/instructor/trainees" },
     { icon: Upload, label: "Materials", path: "/instructor/materials" },
     { icon: Image, label: "Gallery", path: "/instructor/gallery" },
     { icon: Calendar, label: "Timetable", path: "/instructor/timetable" },
@@ -53,18 +60,16 @@ const InstructorDashboard = () => {
       <aside
         className={`fixed lg:static inset-y-0 left-0 z-50 transition-transform duration-300 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-        } w-64 bg-cover bg-center`}
-        style={{ backgroundImage: `url(${tawaBackground})` }}
+        } w-64 bg-slate-900`}
       >
-        <div className="absolute inset-0 bg-gradient-military/70 backdrop-blur-sm" />
         <div className="relative h-full flex flex-col">
           {/* Logo Section */}
-          <div className="p-6 border-b border-white/20">
+          <div className="p-6 border-b border-border">
             <div className="flex items-center gap-3">
               <RotatingLogo className="w-12 h-12" />
               <div>
-                <h2 className="text-accent font-bold text-lg">TAWA</h2>
-                <p className="text-accent/70 text-xs">Instructor Portal</p>
+                <h2 className="text-white font-bold text-xl">TAWA</h2>
+                <p className="text-white/80 text-sm">Instructor Portal</p>
               </div>
             </div>
           </div>
@@ -75,26 +80,26 @@ const InstructorDashboard = () => {
               <Link
                 key={idx}
                 to={item.path}
-                className="flex items-center gap-3 px-4 py-3 text-accent hover:bg-accent/20 rounded-lg transition-colors group"
+                className="flex items-center gap-3 px-4 py-3 text-white hover:bg-white/20 rounded-lg transition-colors group"
               >
-                <item.icon className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                <span className="font-medium">{item.label}</span>
+                <item.icon className="w-6 h-6 group-hover:scale-110 transition-transform" />
+                <span className="font-medium text-base">{item.label}</span>
               </Link>
             ))}
           </nav>
 
           {/* User Section */}
-          <div className="p-4 border-t border-accent/20">
-            <div className="mb-3 text-accent">
-              <p className="font-semibold text-sm">{user?.name}</p>
-              <p className="text-xs text-accent/70">Instructor</p>
+          <div className="p-4 border-t border-border">
+            <div className="mb-3 text-white">
+              <p className="font-semibold text-base">{user?.name}</p>
+              <p className="text-sm text-white/80">Instructor</p>
             </div>
             <Button
               variant="ghost"
-              className="w-full text-accent hover:bg-accent/20"
+              className="w-full text-white hover:bg-white/20"
               onClick={handleLogout}
             >
-              <LogOut className="w-4 h-4 mr-2" />
+              <LogOut className="w-5 h-5 mr-2" />
               Logout
             </Button>
           </div>
@@ -114,9 +119,10 @@ const InstructorDashboard = () => {
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto">
         {/* Header */}
-        <header className="bg-card border-b border-border p-6 sticky top-0 z-10">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-primary">TAWA Instructor Dashboard</h1>
+        <header className="bg-cover bg-center border-b border-border p-6 sticky top-0 z-10" style={{ backgroundImage: `url(${tawaBackground})` }}>
+          <div className="absolute inset-0 bg-gradient-military/70" />
+          <div className="relative flex items-center justify-between">
+            <h1 className="text-3xl font-bold text-white">TAWA Instructor Dashboard</h1>
             <ThemeToggle />
           </div>
         </header>
@@ -125,6 +131,7 @@ const InstructorDashboard = () => {
         <div className="p-6">
           <Routes>
             <Route path="/" element={<InstructorHome />} />
+            <Route path="/trainees" element={<ViewTrainees />} />
             <Route path="/materials" element={<Materials />} />
             <Route path="/gallery" element={<Gallery />} />
             <Route path="/timetable" element={<Timetable />} />
@@ -142,6 +149,30 @@ const InstructorDashboard = () => {
 // Instructor Home Component
 const InstructorHome = () => {
   const { user } = useAuth();
+  const { toast } = useToast();
+  const navigate = useNavigate();
+  
+  const handleQuickAction = (action: string) => {
+    switch(action) {
+      case "Upload Materials":
+        navigate("/instructor/materials");
+        break;
+      case "My Courses":
+        navigate("/instructor");
+        break;
+      case "View Timetable":
+        navigate("/instructor/timetable");
+        break;
+      case "Performance Reports":
+        toast({
+          title: "Performance Reports",
+          description: "Generating your performance reports...",
+        });
+        break;
+      default:
+        break;
+    }
+  };
   
   return (
     <div className="space-y-8">
@@ -168,21 +199,22 @@ const InstructorHome = () => {
         <h3 className="text-xl font-semibold text-primary mb-4">Quick Actions</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {[
-            { icon: Upload, label: "Upload Materials", color: "bg-purple-500" },
-            { icon: BookOpen, label: "My Courses", color: "bg-green-500" },
-            { icon: Calendar, label: "View Timetable", color: "bg-orange-500" },
-            { icon: FileText, label: "Performance Reports", color: "bg-red-500" },
+            { icon: Upload, label: "Upload Materials", color: "bg-purple-500", type: "navigate" },
+            { icon: BookOpen, label: "My Courses", color: "bg-green-500", type: "navigate" },
+            { icon: Calendar, label: "View Timetable", color: "bg-orange-500", type: "navigate" },
+            { icon: FileText, label: "Performance Reports", color: "bg-red-500", type: "modal" },
           ].map((action, idx) => (
-            <div
+            <button
               key={idx}
-              className="group bg-card border border-border rounded-xl p-6 hover:shadow-xl transition-all hover:scale-105 animate-slide-up"
+              onClick={() => handleQuickAction(action.label)}
+              className="group bg-card border border-border rounded-xl p-6 hover:shadow-xl transition-all hover:scale-105 animate-slide-up text-left cursor-pointer"
               style={{ animationDelay: `${idx * 50}ms` }}
             >
               <div className={`${action.color} w-12 h-12 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
                 <action.icon className="w-6 h-6 text-white" />
               </div>
               <h4 className="font-semibold text-lg">{action.label}</h4>
-            </div>
+            </button>
           ))}
         </div>
       </div>

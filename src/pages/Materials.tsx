@@ -1,19 +1,40 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { Upload, Download, FileText, Video, Image, File, Search, Trash2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 
+interface MaterialItem {
+  id: number;
+  name: string;
+  type: string;
+  subject: string;
+  size: string;
+  date: string;
+  url: string;
+  file?: File;
+}
+
 const Materials = () => {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSubject, setSelectedSubject] = useState("all");
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadData, setUploadData] = useState({
+    name: "",
+    subject: "Maps",
+    file: null as File | null,
+  });
   const { toast } = useToast();
 
-  const [materials, setMaterials] = useState([
+  const [materials, setMaterials] = useState<MaterialItem[]>([
     { id: 1, name: "Field_Maps.pdf", type: "pdf", subject: "Maps", size: "1.8 MB", date: "2025-01-15", url: "/materials/Field_Maps.pdf" },
     { id: 2, name: "Introduction_GIS.pdf", type: "pdf", subject: "Maps", size: "2.1 MB", date: "2025-01-16", url: "/materials/Introduction_GIS.pdf" },
     { id: 3, name: "Introduction_GPS.pdf", type: "pdf", subject: "Maps", size: "1.5 MB", date: "2025-01-17", url: "/materials/Introduction_GPS.pdf" },
@@ -39,7 +60,79 @@ const Materials = () => {
     }
   };
 
-  const handleDownload = (material: any) => {
+  const getFileType = (fileName: string): string => {
+    const ext = fileName.split('.').pop()?.toLowerCase();
+    if (ext === 'pdf') return 'pdf';
+    if (['ppt', 'pptx', 'key'].includes(ext || '')) return 'presentation';
+    if (['mp4', 'avi', 'mov', 'wmv'].includes(ext || '')) return 'video';
+    if (['jpg', 'jpeg', 'png', 'gif'].includes(ext || '')) return 'image';
+    return 'document';
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setUploadData({ 
+        ...uploadData, 
+        file,
+        name: file.name,
+      });
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!uploadData.file || !uploadData.subject) {
+      toast({
+        title: "Missing Information",
+        description: "Please select a file and choose a subject",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUploading(true);
+    
+    // Simulate upload delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    const fileType = getFileType(uploadData.file.name);
+    const fileSize = formatFileSize(uploadData.file.size);
+    
+    const newMaterial: MaterialItem = {
+      id: materials.length + 1,
+      name: uploadData.file.name,
+      type: fileType,
+      subject: uploadData.subject,
+      size: fileSize,
+      date: new Date().toISOString().split('T')[0],
+      url: URL.createObjectURL(uploadData.file),
+      file: uploadData.file,
+    };
+
+    setMaterials([...materials, newMaterial]);
+    setShowUploadDialog(false);
+    setUploadData({ name: "", subject: "Maps", file: null });
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+    
+    toast({
+      title: "Material Uploaded",
+      description: `${uploadData.file.name} has been uploaded successfully`,
+    });
+    
+    setUploading(false);
+  };
+
+  const handleDownload = (material: MaterialItem) => {
     const link = document.createElement('a');
     link.href = material.url;
     link.download = material.name;
@@ -71,11 +164,89 @@ const Materials = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-primary">Training Materials</h1>
-        <Button className="bg-gradient-military">
-          <Upload className="w-4 h-4 mr-2" />
-          Upload Material
-        </Button>
+        {(user?.role === "admin" || user?.role === "instructor") && (
+          <Button 
+            onClick={() => setShowUploadDialog(true)} 
+            className="bg-gradient-military"
+          >
+            <Upload className="w-4 h-4 mr-2" />
+            Upload Material
+          </Button>
+        )}
       </div>
+
+      {/* Upload Dialog */}
+      <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Upload New Material</DialogTitle>
+            <DialogDescription>
+              Upload training materials, documents, or resources for the team
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="material-file">Select File *</Label>
+              <Input
+                id="material-file"
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                className="cursor-pointer"
+              />
+              {uploadData.file && (
+                <p className="text-sm text-muted-foreground">
+                  Selected: {uploadData.file.name} ({formatFileSize(uploadData.file.size)})
+                </p>
+              )}
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="material-subject">Subject *</Label>
+              <Select 
+                value={uploadData.subject} 
+                onValueChange={(value) => setUploadData({ ...uploadData, subject: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select subject" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Maps">Maps</SelectItem>
+                  <SelectItem value="Parade">Parade</SelectItem>
+                  <SelectItem value="Weaponry">Weaponry</SelectItem>
+                  <SelectItem value="Field Craft">Field Craft</SelectItem>
+                  <SelectItem value="First Aid">First Aid</SelectItem>
+                  <SelectItem value="Patrol">Patrol</SelectItem>
+                  <SelectItem value="Protocol">Protocol</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setShowUploadDialog(false);
+                  setUploadData({ name: "", subject: "Maps", file: null });
+                  if (fileInputRef.current) {
+                    fileInputRef.current.value = "";
+                  }
+                }}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleUpload} 
+                className="bg-gradient-military"
+                disabled={uploading}
+              >
+                {uploading ? "Uploading..." : "Upload Material"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Search and Filter */}
       <div className="flex gap-4">
@@ -99,6 +270,7 @@ const Materials = () => {
             <SelectItem value="Field Craft">Field Craft</SelectItem>
             <SelectItem value="First Aid">First Aid</SelectItem>
             <SelectItem value="Maps">Maps</SelectItem>
+            <SelectItem value="Patrol">Patrol</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -132,7 +304,7 @@ const Materials = () => {
                   <Download className="w-4 h-4 mr-2" />
                   Download
                 </Button>
-                {user?.role === "admin" && (
+                {(user?.role === "admin" || user?.role === "instructor") && (
                   <Button 
                     onClick={() => handleDelete(material.id)} 
                     variant="destructive"
