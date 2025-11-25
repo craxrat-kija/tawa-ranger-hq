@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
+import { patientsApi, medicalReportsApi, attendanceApi } from "@/lib/api";
 
 export interface Patient {
   id: string;
@@ -43,131 +44,142 @@ interface PatientContextType {
   patients: Patient[];
   reports: MedicalReport[];
   attendance: AttendanceRecord[];
-  addPatient: (patient: Omit<Patient, "id" | "registeredDate">) => Patient;
-  addReport: (report: Omit<MedicalReport, "id">) => void;
-  addAttendance: (attendance: Omit<AttendanceRecord, "id">) => void;
-  updatePatient: (id: string, patient: Partial<Patient>) => void;
-  deletePatient: (id: string) => void;
+  addPatient: (patient: Omit<Patient, "id" | "registeredDate">) => Promise<Patient>;
+  addReport: (report: Omit<MedicalReport, "id">) => Promise<void>;
+  addAttendance: (attendance: Omit<AttendanceRecord, "id">) => Promise<void>;
+  updatePatient: (id: string, patient: Partial<Patient>) => Promise<void>;
+  deletePatient: (id: string) => Promise<void>;
+  refreshData: () => Promise<void>;
 }
 
 const PatientContext = createContext<PatientContextType | undefined>(undefined);
 
 export const PatientProvider = ({ children }: { children: ReactNode }) => {
-  const [patients, setPatients] = useState<Patient[]>([
-    {
-      id: "1",
-      fullName: "John Doe",
-      email: "john.doe@tawa.go.tz",
-      phone: "+255 712 345 678",
-      bloodType: "O+",
-      allergies: "Penicillin, Peanuts",
-      medicalHistory: "No significant history",
-      emergencyContact: "Jane Doe - +255 713 456 789",
-      registeredDate: "2024-01-15",
-    },
-    {
-      id: "2",
-      fullName: "Jane Smith",
-      email: "jane.smith@tawa.go.tz",
-      phone: "+255 713 456 789",
-      bloodType: "A-",
-      allergies: "None",
-      medicalHistory: "Previous ankle injury (2023)",
-      emergencyContact: "John Smith - +255 714 567 890",
-      registeredDate: "2024-01-20",
-    },
-    {
-      id: "3",
-      fullName: "Robert Johnson",
-      email: "robert.j@tawa.go.tz",
-      phone: "+255 714 567 890",
-      bloodType: "B+",
-      allergies: "Dust",
-      medicalHistory: "Hypertension (controlled)",
-      emergencyContact: "Mary Johnson - +255 715 678 901",
-      registeredDate: "2024-02-01",
-    },
-  ]);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [reports, setReports] = useState<MedicalReport[]>([]);
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
 
-  const [reports, setReports] = useState<MedicalReport[]>([
-    {
-      id: "1",
-      patientId: "1",
-      date: "2025-01-25",
-      diagnosis: "Minor ankle sprain",
-      symptoms: "Pain and swelling in right ankle",
-      treatment: "Rest, ice, compression, elevation. Ibuprofen 400mg twice daily for 5 days.",
-      notes: "Patient advised to avoid strenuous activity for 1 week. Follow-up in 7 days if symptoms persist.",
-      doctor: "Dr. Medical Officer",
-      vitalSigns: {
-        bloodPressure: "120/80",
-        temperature: "98.6°F",
-        heartRate: "72 bpm",
-        weight: "75 kg",
-      },
-    },
-    {
-      id: "2",
-      patientId: "2",
-      date: "2025-01-24",
-      diagnosis: "Routine checkup",
-      symptoms: "No current complaints",
-      treatment: "Annual physical examination completed. Patient in good health.",
-      notes: "All vital signs within normal limits. Continue current exercise regimen.",
-      doctor: "Dr. Medical Officer",
-      vitalSigns: {
-        bloodPressure: "115/75",
-        temperature: "98.2°F",
-        heartRate: "68 bpm",
-        weight: "62 kg",
-      },
-    },
-  ]);
+  const refreshData = async () => {
+    try {
+      const [patientsData, reportsData, attendanceData] = await Promise.all([
+        patientsApi.getAll(),
+        medicalReportsApi.getAll(),
+        attendanceApi.getAll(),
+      ]);
 
-  const [attendance, setAttendance] = useState<AttendanceRecord[]>([
-    { id: "1", patientId: "1", date: "2025-01-25", status: "Present", checkInTime: "08:00", checkOutTime: "17:00" },
-    { id: "2", patientId: "1", date: "2025-01-24", status: "Present", checkInTime: "08:15", checkOutTime: "17:30" },
-    { id: "3", patientId: "2", date: "2025-01-25", status: "Late", checkInTime: "09:30", checkOutTime: "17:00" },
-    { id: "4", patientId: "2", date: "2025-01-24", status: "Present", checkInTime: "08:00", checkOutTime: "17:00" },
-    { id: "5", patientId: "3", date: "2025-01-25", status: "Absent", notes: "Sick leave" },
-  ]);
+      setPatients(patientsData.map((p: any) => ({
+        id: p.id.toString(),
+        fullName: p.full_name || p.fullName,
+        email: p.email,
+        phone: p.phone,
+        bloodType: p.blood_type || p.bloodType || "Unknown",
+        allergies: p.allergies || "None",
+        medicalHistory: p.medical_history || p.medicalHistory || "None",
+        emergencyContact: p.emergency_contact || p.emergencyContact || "",
+        registeredDate: p.registered_date || p.registeredDate || new Date().toISOString().split('T')[0],
+      })));
 
-  const addPatient = (patientData: Omit<Patient, "id" | "registeredDate">): Patient => {
-    const newPatient: Patient = {
-      ...patientData,
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-      registeredDate: new Date().toISOString().split('T')[0],
+      setReports(reportsData.map((r: any) => ({
+        id: r.id.toString(),
+        patientId: r.patient_id?.toString() || r.patientId?.toString(),
+        date: r.date,
+        diagnosis: r.diagnosis,
+        symptoms: r.symptoms,
+        treatment: r.treatment,
+        notes: r.notes,
+        doctor: r.doctor,
+        vitalSigns: {
+          bloodPressure: r.vital_signs?.blood_pressure || r.vitalSigns?.bloodPressure || "",
+          temperature: r.vital_signs?.temperature || r.vitalSigns?.temperature || "",
+          heartRate: r.vital_signs?.heart_rate || r.vitalSigns?.heartRate || "",
+          weight: r.vital_signs?.weight || r.vitalSigns?.weight || "",
+        },
+      })));
+
+      setAttendance(attendanceData.map((a: any) => ({
+        id: a.id.toString(),
+        patientId: a.patient_id?.toString() || a.patientId?.toString(),
+        date: a.date,
+        status: a.status,
+        checkInTime: a.check_in_time || a.checkInTime,
+        checkOutTime: a.check_out_time || a.checkOutTime,
+        notes: a.notes,
+      })));
+    } catch (error) {
+      console.error('Error loading patient data:', error);
+    }
+  };
+
+  useEffect(() => {
+    refreshData();
+  }, []);
+
+  const addPatient = async (patientData: Omit<Patient, "id" | "registeredDate">): Promise<Patient> => {
+    const newPatient = await patientsApi.create({
+      full_name: patientData.fullName,
+      email: patientData.email,
+      phone: patientData.phone,
+      blood_type: patientData.bloodType,
+      allergies: patientData.allergies,
+      medical_history: patientData.medicalHistory,
+      emergency_contact: patientData.emergencyContact,
+    });
+    await refreshData();
+    return {
+      id: newPatient.id.toString(),
+      fullName: newPatient.full_name || newPatient.fullName,
+      email: newPatient.email,
+      phone: newPatient.phone,
+      bloodType: newPatient.blood_type || newPatient.bloodType,
+      allergies: newPatient.allergies,
+      medicalHistory: newPatient.medical_history || newPatient.medicalHistory,
+      emergencyContact: newPatient.emergency_contact || newPatient.emergencyContact,
+      registeredDate: newPatient.registered_date || newPatient.registeredDate || new Date().toISOString().split('T')[0],
     };
-    setPatients(prev => [...prev, newPatient]);
-    return newPatient;
   };
 
-  const addReport = (reportData: Omit<MedicalReport, "id">) => {
-    const newReport: MedicalReport = {
-      ...reportData,
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-    };
-    setReports(prev => [...prev, newReport]);
+  const addReport = async (reportData: Omit<MedicalReport, "id">) => {
+    await medicalReportsApi.create({
+      patient_id: parseInt(reportData.patientId),
+      date: reportData.date,
+      diagnosis: reportData.diagnosis,
+      symptoms: reportData.symptoms,
+      treatment: reportData.treatment,
+      notes: reportData.notes,
+      doctor: reportData.doctor,
+      vital_signs: reportData.vitalSigns,
+    });
+    await refreshData();
   };
 
-  const addAttendance = (attendanceData: Omit<AttendanceRecord, "id">) => {
-    const newAttendance: AttendanceRecord = {
-      ...attendanceData,
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-    };
-    setAttendance(prev => [...prev, newAttendance]);
+  const addAttendance = async (attendanceData: Omit<AttendanceRecord, "id">) => {
+    await attendanceApi.create({
+      patient_id: parseInt(attendanceData.patientId),
+      date: attendanceData.date,
+      status: attendanceData.status,
+      check_in_time: attendanceData.checkInTime,
+      check_out_time: attendanceData.checkOutTime,
+      notes: attendanceData.notes,
+    });
+    await refreshData();
   };
 
-  const updatePatient = (id: string, patientData: Partial<Patient>) => {
-    setPatients(prev =>
-      prev.map(patient => (patient.id === id ? { ...patient, ...patientData } : patient))
-    );
+  const updatePatient = async (id: string, patientData: Partial<Patient>) => {
+    await patientsApi.update(id, {
+      full_name: patientData.fullName,
+      email: patientData.email,
+      phone: patientData.phone,
+      blood_type: patientData.bloodType,
+      allergies: patientData.allergies,
+      medical_history: patientData.medicalHistory,
+      emergency_contact: patientData.emergencyContact,
+    });
+    await refreshData();
   };
 
-  const deletePatient = (id: string) => {
-    setPatients(prev => prev.filter(patient => patient.id !== id));
-    setReports(prev => prev.filter(report => report.patientId !== id));
-    setAttendance(prev => prev.filter(att => att.patientId !== id));
+  const deletePatient = async (id: string) => {
+    await patientsApi.delete(id);
+    await refreshData();
   };
 
   return (
@@ -181,6 +193,7 @@ export const PatientProvider = ({ children }: { children: ReactNode }) => {
         addAttendance,
         updatePatient,
         deletePatient,
+        refreshData,
       }}
     >
       {children}

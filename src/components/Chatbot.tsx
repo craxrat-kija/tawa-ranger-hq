@@ -152,10 +152,10 @@ const getKnowledgeBase = () => {
       - Mobile-responsive sidebar toggle
       
       DATA MANAGEMENT:
-      - Patient data stored in PatientContext (React Context)
+      - Patient data stored in database via Laravel backend API
       - Real-time state management across components
-      - No backend currently - uses mock data in context
-      - Data persists during session (resets on refresh)
+      - All data persisted in database
+      - Data fetched from API on component mount
       
       FILE UPLOADS:
       - Supported formats: PDF, PowerPoint, Images (JPG, PNG)

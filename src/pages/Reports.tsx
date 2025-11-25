@@ -91,11 +91,12 @@ const Reports = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {[
-              { name: "Performance Report - January 2024", date: "2024-01-31", size: "2.4 MB" },
-              { name: "Attendance Report - January 2024", date: "2024-01-31", size: "1.8 MB" },
-              { name: "Course Completion - Q4 2023", date: "2024-01-15", size: "3.2 MB" },
-            ].map((report, index) => (
+            {[].length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No reports generated yet. Generated reports will appear here.
+              </p>
+            ) : (
+              [].map((report, index) => (
               <div 
                 key={index}
                 className="flex items-center justify-between p-4 bg-accent/10 rounded-lg hover:bg-accent/20 transition-colors"
@@ -111,7 +112,8 @@ const Reports = () => {
                   <Download className="w-4 h-4" />
                 </Button>
               </div>
-            ))}
+              ))
+            )}
           </div>
         </CardContent>
       </Card>

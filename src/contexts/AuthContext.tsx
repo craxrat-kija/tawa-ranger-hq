@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, ReactNode } from "react";
 import React from "react";
+import { authApi, setAuthToken, removeAuthToken } from "@/lib/api";
 
 export type UserRole = "admin" | "instructor" | "trainee" | "doctor";
 
@@ -9,11 +10,13 @@ interface User {
   email: string;
   role: UserRole;
   avatar?: string;
+  phone?: string;
+  department?: string;
 }
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<{ success: boolean; user?: User }>;
   logout: () => void;
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -26,48 +29,74 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   React.useEffect(() => {
-    // Simulate initial loading
-    const timer = setTimeout(() => {
+    // Check if user is already logged in
+    const checkAuth = async () => {
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        try {
+          const userData = await authApi.getCurrentUser();
+          // Handle response structure - apiRequest returns data.data || data
+          const user = userData.user || userData;
+          if (user && user.id) {
+            setUser({
+              id: user.id.toString(),
+              name: user.name,
+              email: user.email,
+              role: user.role,
+              avatar: user.avatar,
+              phone: user.phone,
+              department: user.department,
+            });
+          }
+        } catch (error) {
+          console.error('Error checking auth:', error);
+          // Token is invalid, remove it
+          removeAuthToken();
+        }
+      }
       setIsLoading(false);
-    }, 300);
-    return () => clearTimeout(timer);
+    };
+    checkAuth();
   }, []);
 
-  const login = async (email: string, password: string): Promise<boolean> => {
-    // Mock authentication - role is determined by email domain for security
-    if (password === "tawa2024") {
-      // Determine role based on email pattern (in real app, this comes from backend)
-      let role: UserRole;
-      let name: string;
+  const login = async (email: string, password: string): Promise<{ success: boolean; user?: User }> => {
+    try {
+      const response = await authApi.login(email, password);
       
-      if (email.includes("admin")) {
-        role = "admin";
-        name = "System Administrator";
-      } else if (email.includes("doctor") || email.includes("doc")) {
-        role = "doctor";
-        name = "Medical Officer";
-      } else if (email.includes("instructor") || email.includes("teacher")) {
-        role = "instructor";
-        name = "Instructor";
-      } else {
-        role = "trainee";
-        name = "Trainee";
+      // Handle response structure - backend returns { success: true, data: { user: ..., token: ... } }
+      // apiRequest returns data.data || data, so response should be { user: ..., token: ... }
+      if (!response || !response.token || !response.user) {
+        console.error('Invalid login response:', response);
+        return { success: false };
       }
       
-      const mockUser: User = {
-        id: Math.random().toString(36).substr(2, 9),
-        name,
-        email,
-        role,
+      setAuthToken(response.token);
+      const userData = {
+        id: response.user.id.toString(),
+        name: response.user.name,
+        email: response.user.email,
+        role: response.user.role,
+        avatar: response.user.avatar,
+        phone: response.user.phone,
+        department: response.user.department,
       };
-      setUser(mockUser);
-      return true;
+      setUser(userData);
+      return { success: true, user: userData };
+    } catch (error: any) {
+      console.error('Login error:', error);
+      return { success: false };
     }
-    return false;
   };
 
-  const logout = () => {
-    setUser(null);
+  const logout = async () => {
+    try {
+      await authApi.logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      removeAuthToken();
+      setUser(null);
+    }
   };
 
   return (

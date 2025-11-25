@@ -1,51 +1,51 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { usersApi } from "@/lib/api";
 import { Mail, Phone, Award } from "lucide-react";
 
+interface Instructor {
+  id: number;
+  name: string;
+  email: string;
+  phone: string;
+  specialization?: string;
+  rank?: string;
+  experience?: string;
+  avatar?: string;
+  department?: string;
+}
+
 const Instructors = () => {
-  const mockInstructors = [
-    {
-      id: 1,
-      name: "CPT. John Mwangi",
-      email: "j.mwangi@tawa.go.tz",
-      phone: "+255 712 345 678",
-      specialization: "Parade & Protocol",
-      rank: "Captain",
-      experience: "12 years",
-      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=John"
-    },
-    {
-      id: 2,
-      name: "SGT. Sarah Kimani",
-      email: "s.kimani@tawa.go.tz",
-      phone: "+255 713 456 789",
-      specialization: "Weaponry",
-      rank: "Sergeant",
-      experience: "8 years",
-      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah"
-    },
-    {
-      id: 3,
-      name: "LT. Ahmed Nyerere",
-      email: "a.nyerere@tawa.go.tz",
-      phone: "+255 714 567 890",
-      specialization: "Field Craft",
-      rank: "Lieutenant",
-      experience: "10 years",
-      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Ahmed"
-    },
-    {
-      id: 4,
-      name: "CPL. Mary Hassan",
-      email: "m.hassan@tawa.go.tz",
-      phone: "+255 715 678 901",
-      specialization: "First Aid",
-      rank: "Corporal",
-      experience: "6 years",
-      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Mary"
-    },
-  ];
+  const [instructors, setInstructors] = useState<Instructor[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    loadInstructors();
+  }, []);
+
+  const loadInstructors = async () => {
+    try {
+      setIsLoading(true);
+      const data = await usersApi.getAll('instructor');
+      setInstructors(data.map((u: any) => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        phone: u.phone || "",
+        department: u.department || "",
+        specialization: u.department || "Training",
+        rank: u.name.match(/(CPT|SGT|LT|CPL|Captain|Sergeant|Lieutenant|Corporal)\.?/i)?.[0] || "Instructor",
+        experience: "N/A",
+        avatar: u.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.name}`,
+      })));
+    } catch (error) {
+      console.error('Error loading instructors:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -54,8 +54,16 @@ const Instructors = () => {
         <p className="text-muted-foreground">Training staff and their specializations</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {mockInstructors.map((instructor) => (
+      {isLoading ? (
+        <div className="text-center py-8">Loading instructors...</div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {instructors.length === 0 ? (
+            <div className="col-span-2 text-center py-8 text-muted-foreground">
+              No instructors found
+            </div>
+          ) : (
+            instructors.map((instructor) => (
           <Card key={instructor.id} className="hover:shadow-lg transition-shadow">
             <CardHeader>
               <div className="flex items-start gap-4">
@@ -91,8 +99,10 @@ const Instructors = () => {
               </div>
             </CardContent>
           </Card>
-        ))}
-      </div>
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 };

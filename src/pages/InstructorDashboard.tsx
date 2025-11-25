@@ -11,6 +11,8 @@ import Timetable from "./Timetable";
 import Instructors from "./Instructors";
 import ChatBoard from "./ChatBoard";
 import ViewTrainees from "./ViewTrainees";
+import Assessments from "./Assessments";
+import Results from "./Results";
 import {
   Upload,
   Calendar,
@@ -24,12 +26,14 @@ import {
   MessageSquare,
   Image,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { timetableApi } from "@/lib/api";
+import { format } from "date-fns";
 import tawaBackground from "@/assets/tawa-background.jpg";
 
 const InstructorDashboard = () => {
@@ -50,8 +54,8 @@ const InstructorDashboard = () => {
     { icon: Calendar, label: "Timetable", path: "/instructor/timetable" },
     { icon: Users, label: "Instructors", path: "/instructor/instructors" },
     { icon: MessageSquare, label: "Chat Board", path: "/instructor/chat" },
-    { icon: ClipboardCheck, label: "Assessment", path: "/instructor/assessment" },
-    { icon: FileText, label: "Performance", path: "/instructor/performance" },
+    { icon: ClipboardCheck, label: "Assessments", path: "/instructor/assessments" },
+    { icon: FileText, label: "Results", path: "/instructor/results" },
   ];
 
   return (
@@ -137,6 +141,8 @@ const InstructorDashboard = () => {
             <Route path="/timetable" element={<Timetable />} />
             <Route path="/instructors" element={<Instructors />} />
             <Route path="/chat" element={<ChatBoard />} />
+            <Route path="/assessments" element={<Assessments />} />
+            <Route path="/results" element={<Results />} />
           </Routes>
         </div>
       </main>
@@ -151,6 +157,27 @@ const InstructorHome = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [todaySchedule, setTodaySchedule] = useState<any[]>([]);
+  const [isLoadingSchedule, setIsLoadingSchedule] = useState(true);
+
+  useEffect(() => {
+    loadTodaySchedule();
+  }, []);
+
+  const loadTodaySchedule = async () => {
+    try {
+      setIsLoadingSchedule(true);
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const data = await timetableApi.getAll();
+      // Filter for today's schedule
+      const todayItems = data.filter((item: any) => item.date === today);
+      setTodaySchedule(todayItems);
+    } catch (error) {
+      console.error('Error loading today\'s schedule:', error);
+    } finally {
+      setIsLoadingSchedule(false);
+    }
+  };
   
   const handleQuickAction = (action: string) => {
     switch(action) {
@@ -188,10 +215,10 @@ const InstructorHome = () => {
 
       {/* Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <AnimatedCounter end={8} label="My Courses" icon={BookOpen} delay={0} />
-        <AnimatedCounter end={124} label="My Students" icon={Users} delay={100} />
-        <AnimatedCounter end={87} label="Uploaded Materials" icon={FileText} delay={200} />
-        <AnimatedCounter end={15} label="Pending Reviews" icon={ClipboardCheck} delay={300} />
+        <AnimatedCounter end={0} label="My Courses" icon={BookOpen} delay={0} />
+        <AnimatedCounter end={0} label="My Students" icon={Users} delay={100} />
+        <AnimatedCounter end={0} label="Uploaded Materials" icon={FileText} delay={200} />
+        <AnimatedCounter end={0} label="Pending Reviews" icon={ClipboardCheck} delay={300} />
       </div>
 
       {/* Quick Actions */}
@@ -227,19 +254,26 @@ const InstructorHome = () => {
             Today's Schedule
           </h3>
           <div className="space-y-3">
-            {[
-              { time: "08:00 - 10:00", subject: "Parade & Protocol", course: "Recruit Course" },
-              { time: "10:30 - 12:00", subject: "Weaponry Training", course: "Special Course" },
-              { time: "14:00 - 16:00", subject: "Field Craft", course: "Transformation" },
-            ].map((item, idx) => (
-              <div key={idx} className="p-3 bg-muted/50 rounded-lg">
-                <div className="flex justify-between items-start mb-1">
-                  <span className="font-semibold">{item.subject}</span>
-                  <span className="text-xs text-accent">{item.time}</span>
-                </div>
-                <p className="text-sm text-muted-foreground">{item.course}</p>
-              </div>
-            ))}
+            {isLoadingSchedule ? (
+              <p className="text-sm text-muted-foreground text-center py-4">Loading schedule...</p>
+            ) : todaySchedule.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No classes scheduled for today. Check the timetable to view upcoming schedules.
+              </p>
+            ) : (
+              todaySchedule
+                .sort((a, b) => a.time.localeCompare(b.time))
+                .map((item) => (
+                  <div key={item.id} className="p-3 bg-muted/50 rounded-lg">
+                    <div className="flex justify-between items-start mb-1">
+                      <span className="font-semibold">{item.subject}</span>
+                      <span className="text-xs text-accent">{item.time}</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">{item.instructor}</p>
+                    <p className="text-xs text-muted-foreground">{item.location}</p>
+                  </div>
+                ))
+            )}
           </div>
         </div>
 
@@ -249,23 +283,25 @@ const InstructorHome = () => {
             Recent Feedback
           </h3>
           <div className="space-y-3">
-            {[
-              { student: "Trainee John M.", message: "Excellent weapons safety instruction", rating: 5 },
-              { student: "Trainee Sarah K.", message: "Clear field craft demonstrations", rating: 5 },
-              { student: "Trainee David L.", message: "Very engaging patrol training", rating: 4 },
-            ].map((feedback, idx) => (
-              <div key={idx} className="p-3 bg-muted/50 rounded-lg">
-                <div className="flex justify-between items-start mb-1">
-                  <span className="font-semibold text-sm">{feedback.student}</span>
-                  <div className="flex gap-1">
-                    {[...Array(feedback.rating)].map((_, i) => (
-                      <span key={i} className="text-accent">★</span>
-                    ))}
+            {[].length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No feedback available yet. Feedback will appear here once trainees submit their reviews.
+              </p>
+            ) : (
+              [].map((feedback, idx) => (
+                <div key={idx} className="p-3 bg-muted/50 rounded-lg">
+                  <div className="flex justify-between items-start mb-1">
+                    <span className="font-semibold text-sm">{feedback.student}</span>
+                    <div className="flex gap-1">
+                      {[...Array(feedback.rating)].map((_, i) => (
+                        <span key={i} className="text-accent">★</span>
+                      ))}
+                    </div>
                   </div>
+                  <p className="text-sm text-muted-foreground">{feedback.message}</p>
                 </div>
-                <p className="text-sm text-muted-foreground">{feedback.message}</p>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </div>

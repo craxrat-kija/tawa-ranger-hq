@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +8,7 @@ import { Upload, Download, FileText, Video, Image, File, Search, Trash2 } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { materialsApi } from "@/lib/api";
 
 interface MaterialItem {
   id: number;
@@ -34,15 +35,42 @@ const Materials = () => {
   });
   const { toast } = useToast();
 
-  const [materials, setMaterials] = useState<MaterialItem[]>([
-    { id: 1, name: "Field_Maps.pdf", type: "pdf", subject: "Maps", size: "1.8 MB", date: "2025-01-15", url: "/materials/Field_Maps.pdf" },
-    { id: 2, name: "Introduction_GIS.pdf", type: "pdf", subject: "Maps", size: "2.1 MB", date: "2025-01-16", url: "/materials/Introduction_GIS.pdf" },
-    { id: 3, name: "Introduction_GPS.pdf", type: "pdf", subject: "Maps", size: "1.5 MB", date: "2025-01-17", url: "/materials/Introduction_GPS.pdf" },
-    { id: 4, name: "MAP_OF_FORT_IKOMA_AREA.pdf", type: "pdf", subject: "Maps", size: "3.2 MB", date: "2025-01-18", url: "/materials/MAP_OF_FORT_IKOMA_AREA.pdf" },
-    { id: 5, name: "Patrol_Maps.pdf", type: "pdf", subject: "Patrol", size: "2.8 MB", date: "2025-01-19", url: "/materials/Patrol_Maps.pdf" },
-    { id: 6, name: "Weapon_Training.ppt", type: "presentation", subject: "Weaponry", size: "8.5 MB", date: "2025-01-20", url: "/materials/Weapon_Training.ppt" },
-    { id: 7, name: "Weaponry_Training_Bilingual.pptx", type: "presentation", subject: "Weaponry", size: "12.3 MB", date: "2025-01-21", url: "/materials/Weaponry_Training_Bilingual.pptx" },
-  ]);
+  const [materials, setMaterials] = useState<MaterialItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    loadMaterials();
+  }, [selectedSubject, searchQuery]);
+
+  const loadMaterials = async () => {
+    try {
+      setIsLoading(true);
+      const data = await materialsApi.getAll(
+        selectedSubject !== "all" ? selectedSubject : undefined,
+        undefined,
+        searchQuery || undefined
+      );
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+      setMaterials(data.map((m: any) => ({
+        id: m.id,
+        name: m.name,
+        type: m.type,
+        subject: m.subject,
+        size: m.file_size,
+        date: m.created_at ? new Date(m.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        url: `${API_BASE_URL}/storage/${m.file_path}`,
+      })));
+    } catch (error) {
+      console.error('Error loading materials:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load materials. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const getFileIcon = (type: string) => {
     switch (type) {
@@ -98,67 +126,87 @@ const Materials = () => {
       return;
     }
 
+    // Check file size (10MB max)
+    const maxSize = 10 * 1024 * 1024; // 10MB in bytes
+    if (uploadData.file.size > maxSize) {
+      toast({
+        title: "File Too Large",
+        description: "File size must be less than 10MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setUploading(true);
     
-    // Simulate upload delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const fileType = getFileType(uploadData.file.name);
-    const fileSize = formatFileSize(uploadData.file.size);
-    
-    const newMaterial: MaterialItem = {
-      id: materials.length + 1,
-      name: uploadData.file.name,
-      type: fileType,
-      subject: uploadData.subject,
-      size: fileSize,
-      date: new Date().toISOString().split('T')[0],
-      url: URL.createObjectURL(uploadData.file),
-      file: uploadData.file,
-    };
-
-    setMaterials([...materials, newMaterial]);
-    setShowUploadDialog(false);
-    setUploadData({ name: "", subject: "Maps", file: null });
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+    try {
+      await materialsApi.create(
+        uploadData.file,
+        uploadData.name || uploadData.file.name,
+        uploadData.subject
+      );
+      
+      setShowUploadDialog(false);
+      setUploadData({ name: "", subject: "Maps", file: null });
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      
+      toast({
+        title: "Material Uploaded",
+        description: `${uploadData.name || uploadData.file.name} has been uploaded successfully`,
+      });
+      
+      loadMaterials();
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      toast({
+        title: "Upload Failed",
+        description: error.message || "Failed to upload material. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
     }
-    
-    toast({
-      title: "Material Uploaded",
-      description: `${uploadData.file.name} has been uploaded successfully`,
-    });
-    
-    setUploading(false);
   };
 
-  const handleDownload = (material: MaterialItem) => {
-    const link = document.createElement('a');
-    link.href = material.url;
-    link.download = material.name;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    toast({
-      title: "Download Started",
-      description: `Downloading ${material.name}`,
-    });
+  const handleDownload = async (material: MaterialItem) => {
+    try {
+      await materialsApi.download(material.id.toString());
+      toast({
+        title: "Download Started",
+        description: `Downloading ${material.name}`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Download Failed",
+        description: error.message || "Failed to download material. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleDelete = (materialId: number) => {
-    setMaterials(materials.filter(m => m.id !== materialId));
-    toast({
-      title: "Material Deleted",
-      description: "Material has been removed successfully",
-    });
+  const handleDelete = async (materialId: number) => {
+    if (!confirm("Are you sure you want to delete this material?")) {
+      return;
+    }
+    try {
+      await materialsApi.delete(materialId.toString());
+      toast({
+        title: "Material Deleted",
+        description: "Material has been removed successfully",
+      });
+      loadMaterials();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete material. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const filteredMaterials = materials.filter(material => {
-    const matchesSearch = material.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesSubject = selectedSubject === "all" || material.subject === selectedSubject;
-    return matchesSearch && matchesSubject;
-  });
+  const filteredMaterials = materials;
 
   return (
     <div className="space-y-6">
@@ -176,7 +224,15 @@ const Materials = () => {
       </div>
 
       {/* Upload Dialog */}
-      <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+      <Dialog open={showUploadDialog} onOpenChange={(open) => {
+        setShowUploadDialog(open);
+        if (!open) {
+          setUploadData({ name: "", subject: "Maps", file: null });
+          if (fileInputRef.current) {
+            fileInputRef.current.value = "";
+          }
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Upload New Material</DialogTitle>
@@ -199,6 +255,16 @@ const Materials = () => {
                   Selected: {uploadData.file.name} ({formatFileSize(uploadData.file.size)})
                 </p>
               )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="material-name">Material Name *</Label>
+              <Input
+                id="material-name"
+                value={uploadData.name}
+                onChange={(e) => setUploadData({ ...uploadData, name: e.target.value })}
+                placeholder="Enter material name (defaults to filename)"
+              />
             </div>
             
             <div className="space-y-2">
@@ -276,8 +342,16 @@ const Materials = () => {
       </div>
 
       {/* Materials Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredMaterials.map((material) => (
+      {isLoading ? (
+        <div className="text-center py-8">Loading materials...</div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredMaterials.length === 0 ? (
+            <div className="col-span-full text-center py-8 text-muted-foreground">
+              No materials found. Upload your first material to get started.
+            </div>
+          ) : (
+            filteredMaterials.map((material) => (
           <Card key={material.id} className="hover:shadow-lg transition-shadow">
             <CardHeader>
               <div className="flex items-start justify-between">
@@ -316,8 +390,10 @@ const Materials = () => {
               </div>
             </CardContent>
           </Card>
-        ))}
-      </div>
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 };

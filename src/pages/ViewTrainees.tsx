@@ -1,8 +1,10 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
+import { usersApi } from "@/lib/api";
 import { Eye } from "lucide-react";
 
 interface Trainee {
@@ -12,21 +14,39 @@ interface Trainee {
   role: string;
   phone: string;
   department: string;
-  course: string;
-  status: "active" | "completed" | "suspended";
+  course?: string;
+  status?: "active" | "completed" | "suspended";
 }
 
 const ViewTrainees = () => {
   const { user } = useAuth();
-  
-  // Mock data for trainees
-  const trainees: Trainee[] = [
-    { id: "1", name: "John Doe", email: "john.doe@tawa.go.tz", role: "trainee", phone: "+255 712 345 678", department: "Field Operations", course: "Recruit Course", status: "active" },
-    { id: "2", name: "Jane Smith", email: "jane.smith@tawa.go.tz", role: "trainee", phone: "+255 713 456 789", department: "Wildlife Protection", course: "Special Course", status: "active" },
-    { id: "3", name: "Michael Johnson", email: "michael.j@tawa.go.tz", role: "trainee", phone: "+255 714 567 890", department: "Conservation", course: "Transformation Course", status: "completed" },
-    { id: "4", name: "Sarah Williams", email: "sarah.w@tawa.go.tz", role: "trainee", phone: "+255 715 678 901", department: "Law Enforcement", course: "Recruit Course", status: "active" },
-    { id: "5", name: "Robert Brown", email: "robert.b@tawa.go.tz", role: "trainee", phone: "+255 716 789 012", department: "Field Operations", course: "Special Course", status: "suspended" },
-  ];
+  const [trainees, setTrainees] = useState<Trainee[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    loadTrainees();
+  }, []);
+
+  const loadTrainees = async () => {
+    try {
+      setIsLoading(true);
+      const data = await usersApi.getAll('trainee');
+      setTrainees(data.map((u: any) => ({
+        id: u.id.toString(),
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        phone: u.phone || "",
+        department: u.department || "",
+        course: "N/A", // This would come from course enrollment in a real system
+        status: "active" as const, // This would come from enrollment status in a real system
+      })));
+    } catch (error) {
+      console.error('Error loading trainees:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch(status) {
@@ -64,19 +84,29 @@ const ViewTrainees = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Course</TableHead>
-                <TableHead>Department</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Phone</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {trainees.map((trainee) => (
+          {isLoading ? (
+            <div className="text-center py-8">Loading trainees...</div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Course</TableHead>
+                  <TableHead>Department</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Phone</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {trainees.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      No trainees found
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  trainees.map((trainee) => (
                 <TableRow key={trainee.id}>
                   <TableCell>
                     <div className="flex items-center gap-3">
@@ -96,9 +126,11 @@ const ViewTrainees = () => {
                   </TableCell>
                   <TableCell>{trainee.phone}</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 

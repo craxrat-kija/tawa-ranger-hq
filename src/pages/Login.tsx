@@ -4,43 +4,89 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RotatingLogo } from "@/components/RotatingLogo";
-import { Lock, Mail } from "lucide-react";
+import { Lock, Mail, User, Copy, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import tawaBackground from "@/assets/tawa-background.jpg";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const { login } = useAuth();
+  const [showCredentials, setShowCredentials] = useState(false);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const { login, user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  const credentials = [
+    { role: "Admin", email: "admin@tawa.go.tz", password: "tawa2024", color: "bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400" },
+    { role: "Instructor", email: "instructor@tawa.go.tz", password: "tawa2024", color: "bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400" },
+    { role: "Doctor", email: "doctor@tawa.go.tz", password: "tawa2024", color: "bg-green-500/10 border-green-500/20 text-green-600 dark:text-green-400" },
+  ];
+
+  const copyToClipboard = (text: string, index: number) => {
+    navigator.clipboard.writeText(text);
+    setCopiedIndex(index);
+    toast({
+      title: "Copied!",
+      description: "Credentials copied to clipboard",
+    });
+    setTimeout(() => setCopiedIndex(null), 2000);
+  };
+
+  const fillCredentials = (credEmail: string, credPassword: string) => {
+    setEmail(credEmail);
+    setPassword(credPassword);
+    setShowCredentials(false);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const success = await login(email, password);
-    
-    if (success) {
-      toast({
-        title: "Login Successful",
-        description: `Welcome to TAWA Training Portal`,
-      });
+    try {
+      const result = await login(email, password);
       
-      // Navigate based on detected role
-      setTimeout(() => {
-        let role = "instructor"; // default
-        if (email.includes("admin")) {
-          role = "admin";
-        } else if (email.includes("doctor") || email.includes("doc")) {
-          role = "doctor";
+      if (result.success && result.user) {
+        toast({
+          title: "Login Successful",
+          description: `Welcome to TAWA Training Portal`,
+        });
+        
+        // Navigate based on actual user role from login response
+        const userRole = result.user.role;
+        
+        // Trainees cannot login to the system
+        if (userRole === "trainee") {
+          toast({
+            title: "Access Denied",
+            description: "Trainees do not have access to the login system. Please contact your administrator.",
+            variant: "destructive",
+          });
+          return;
         }
-        navigate(`/${role}`);
-      }, 100);
-    } else {
+        
+        if (userRole === "admin") {
+          navigate("/admin");
+        } else if (userRole === "doctor") {
+          navigate("/doctor");
+        } else if (userRole === "instructor") {
+          navigate("/instructor");
+        } else {
+          navigate("/instructor"); // default
+        }
+      } else {
+        toast({
+          title: "Login Failed",
+          description: "Invalid credentials. Please check your email and password.",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      console.error('Login error:', error);
       toast({
         title: "Login Failed",
-        description: "Invalid credentials. Demo: admin@tawa.go.tz / instructor@tawa.go.tz",
+        description: error.message || "An error occurred during login. Please try again.",
         variant: "destructive",
       });
     }
@@ -118,14 +164,81 @@ const Login = () => {
             </Button>
           </form>
 
-          {/* Footer Links */}
-          <div className="mt-6 text-center space-y-2">
-            <button className="text-sm text-accent hover:underline">
-              Forgot Password?
-            </button>
-            <p className="text-xs text-muted-foreground">
-              Demo: admin@tawa.go.tz, instructor@tawa.go.tz, or doctor@tawa.go.tz | Password: tawa2024
-            </p>
+          {/* Credentials Section */}
+          <div className="mt-6 space-y-3">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={() => setShowCredentials(!showCredentials)}
+            >
+              <User className="w-4 h-4 mr-2" />
+              {showCredentials ? "Hide" : "Show"} Login Credentials
+            </Button>
+
+            {showCredentials && (
+              <Card className="bg-card/50 border-accent/20">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-semibold">Available Accounts</CardTitle>
+                  <CardDescription className="text-xs">
+                    Click on any credential to auto-fill the login form
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {credentials.map((cred, index) => (
+                    <div
+                      key={index}
+                      className={`p-3 rounded-lg border cursor-pointer hover:opacity-80 transition-opacity ${cred.color}`}
+                      onClick={() => fillCredentials(cred.email, cred.password)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-semibold text-sm">{cred.role}</span>
+                          </div>
+                          <div className="text-xs space-y-1">
+                            <div className="flex items-center gap-2">
+                              <Mail className="w-3 h-3" />
+                              <span className="font-mono">{cred.email}</span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  copyToClipboard(cred.email, index * 2);
+                                }}
+                                className="ml-auto p-1 hover:bg-white/20 rounded"
+                              >
+                                {copiedIndex === index * 2 ? (
+                                  <Check className="w-3 h-3" />
+                                ) : (
+                                  <Copy className="w-3 h-3" />
+                                )}
+                              </button>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Lock className="w-3 h-3" />
+                              <span className="font-mono">{cred.password}</span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  copyToClipboard(cred.password, index * 2 + 1);
+                                }}
+                                className="ml-auto p-1 hover:bg-white/20 rounded"
+                              >
+                                {copiedIndex === index * 2 + 1 ? (
+                                  <Check className="w-3 h-3" />
+                                ) : (
+                                  <Copy className="w-3 h-3" />
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
 

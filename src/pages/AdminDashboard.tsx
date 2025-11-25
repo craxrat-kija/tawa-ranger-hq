@@ -13,6 +13,9 @@ import Instructors from "./Instructors";
 import ChatBoard from "./ChatBoard";
 import RegisterUsers from "./RegisterUsers";
 import Courses from "./Courses";
+import Assessments from "./Assessments";
+import Results from "./Results";
+import Subjects from "./Subjects";
 import {
   Users,
   BookOpen,
@@ -29,6 +32,7 @@ import {
   TrendingUp,
   Image,
   MessageSquare,
+  ClipboardCheck,
 } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -47,7 +51,8 @@ const AdminDashboard = () => {
   const menuItems = [
     { icon: Users, label: "Dashboard", path: "/admin" },
     { icon: Users, label: "All Users", path: "/admin/users" },
-    { icon: Users, label: "Register Users", path: "/admin/users?action=register" },
+    { icon: Users, label: "Register Users", path: "/admin/users" },
+    { icon: BookOpen, label: "Subjects", path: "/admin/subjects" },
     { icon: BookOpen, label: "Courses", path: "/admin/courses" },
     { icon: Upload, label: "Materials", path: "/admin/materials" },
     { icon: Image, label: "Gallery", path: "/admin/gallery" },
@@ -55,6 +60,8 @@ const AdminDashboard = () => {
     { icon: FileText, label: "Reports", path: "/admin/reports" },
     { icon: Users, label: "Instructors", path: "/admin/instructors" },
     { icon: MessageSquare, label: "Chat Board", path: "/admin/chat" },
+    { icon: ClipboardCheck, label: "Assessments", path: "/admin/assessments" },
+    { icon: FileText, label: "Results", path: "/admin/results" },
   ];
 
   return (
@@ -135,6 +142,7 @@ const AdminDashboard = () => {
           <Routes>
             <Route path="/" element={<DashboardHome />} />
             <Route path="/users" element={<RegisterUsers />} />
+            <Route path="/subjects" element={<Subjects />} />
             <Route path="/courses" element={<Courses />} />
             <Route path="/materials" element={<Materials />} />
             <Route path="/gallery" element={<Gallery />} />
@@ -143,6 +151,8 @@ const AdminDashboard = () => {
             <Route path="/instructors" element={<Instructors />} />
             <Route path="/trainees" element={<RegisterUsers />} />
             <Route path="/chat" element={<ChatBoard />} />
+            <Route path="/assessments" element={<Assessments />} />
+            <Route path="/results" element={<Results />} />
           </Routes>
         </div>
       </main>
@@ -197,10 +207,10 @@ const DashboardHome = () => {
 
       {/* Statistics Counters */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <AnimatedCounter end={45} label="Total Instructors" icon={Users} delay={0} />
-        <AnimatedCounter end={312} label="Active Trainees" icon={GraduationCap} delay={100} />
-        <AnimatedCounter end={28} label="Active Courses" icon={BookOpen} delay={200} />
-        <AnimatedCounter end={486} label="Course Materials" icon={FileText} delay={300} />
+        <AnimatedCounter end={0} label="Total Instructors" icon={Users} delay={0} />
+        <AnimatedCounter end={0} label="Active Trainees" icon={GraduationCap} delay={100} />
+        <AnimatedCounter end={0} label="Active Courses" icon={BookOpen} delay={200} />
+        <AnimatedCounter end={0} label="Course Materials" icon={FileText} delay={300} />
       </div>
 
       {/* Quick Actions Grid */}
@@ -242,12 +252,12 @@ const DashboardHome = () => {
             Course Types Overview
           </h3>
           <div className="space-y-4">
-            {[
-              { name: "Transformation Course", count: 8, color: "bg-blue-500" },
-              { name: "Special Course", count: 6, color: "bg-purple-500" },
-              { name: "Recruit Course", count: 10, color: "bg-green-500" },
-              { name: "Refresher Course", count: 4, color: "bg-orange-500" },
-            ].map((course, idx) => (
+            {[].length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No course data available. Course statistics will appear here once courses are created.
+              </p>
+            ) : (
+              [].map((course, idx) => (
               <div key={idx} className="flex items-center gap-4">
                 <div className={`${course.color} w-3 h-3 rounded-full`} />
                 <div className="flex-1">
@@ -263,7 +273,8 @@ const DashboardHome = () => {
                   </div>
                 </div>
               </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 
@@ -274,12 +285,12 @@ const DashboardHome = () => {
             Performance Highlights
           </h3>
           <div className="space-y-4">
-            {[
-              { metric: "Average Pass Rate", value: "87.5%", trend: "up" },
-              { metric: "Course Completion", value: "92.3%", trend: "up" },
-              { metric: "Instructor Rating", value: "4.7/5", trend: "up" },
-              { metric: "Material Usage", value: "94.2%", trend: "up" },
-            ].map((stat, idx) => (
+            {[].length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No performance data available. Performance metrics will appear here once data is collected.
+              </p>
+            ) : (
+              [].map((stat, idx) => (
               <div key={idx} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                 <span className="text-sm font-medium">{stat.metric}</span>
                 <div className="flex items-center gap-2">
@@ -287,7 +298,8 @@ const DashboardHome = () => {
                   <Award className="w-4 h-4 text-accent" />
                 </div>
               </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </div>

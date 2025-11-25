@@ -221,9 +221,8 @@ const RegisterUser = () => {
     emergencyContact: "",
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Form submitted", formData);
     
     if (!formData.fullName || !formData.email || !formData.phone || !formData.emergencyContact) {
       toast({
@@ -235,17 +234,7 @@ const RegisterUser = () => {
     }
 
     try {
-      console.log("Calling addPatient with data:", {
-        fullName: formData.fullName,
-        email: formData.email,
-      phone: formData.phone,
-        bloodType: formData.bloodType || "Unknown",
-        allergies: formData.allergies || "None",
-        medicalHistory: formData.medicalHistory || "None",
-        emergencyContact: formData.emergencyContact,
-      });
-
-      const newPatient = addPatient({
+      await addPatient({
         fullName: formData.fullName,
         email: formData.email,
         phone: formData.phone,
@@ -254,8 +243,6 @@ const RegisterUser = () => {
         medicalHistory: formData.medicalHistory || "None",
         emergencyContact: formData.emergencyContact,
       });
-
-      console.log("Patient added successfully:", newPatient);
 
       toast({
         title: "Patient Registered",
@@ -279,8 +266,8 @@ const RegisterUser = () => {
     } catch (error) {
       console.error("Error registering patient:", error);
       toast({
-        title: "Registration Failed",
-        description: error instanceof Error ? error.message : "There was an error registering the patient. Please try again.",
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to register patient. Please try again.",
         variant: "destructive",
       });
     }
@@ -411,12 +398,21 @@ const RegisterUser = () => {
 
 // Health Records Component
 const HealthRecords = () => {
-  const mockRecords = [
-    { id: 1, name: "John Doe", bloodType: "O+", lastCheckup: "2025-01-15", status: "Healthy" },
-    { id: 2, name: "Jane Smith", bloodType: "A-", lastCheckup: "2025-01-18", status: "Follow-up required" },
-    { id: 3, name: "Robert Johnson", bloodType: "B+", lastCheckup: "2025-01-20", status: "Healthy" },
-    { id: 4, name: "Maria Garcia", bloodType: "AB+", lastCheckup: "2025-01-22", status: "Under observation" },
-  ];
+  const { patients, reports } = usePatients();
+
+  // Get latest report for each patient
+  const patientRecords = patients.map(patient => {
+    const patientReports = reports.filter(r => r.patientId === patient.id);
+    const latestReport = patientReports.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+    
+    return {
+      id: patient.id,
+      name: patient.fullName,
+      bloodType: patient.bloodType,
+      lastCheckup: latestReport?.date || "No checkup",
+      status: latestReport ? "Healthy" : "No records",
+    };
+  });
 
   return (
     <div className="space-y-6">
@@ -426,7 +422,14 @@ const HealthRecords = () => {
       </div>
 
       <div className="grid gap-4">
-        {mockRecords.map((record) => (
+        {patientRecords.length === 0 ? (
+          <Card>
+            <CardContent className="p-6 text-center text-muted-foreground">
+              No health records found
+            </CardContent>
+          </Card>
+        ) : (
+          patientRecords.map((record) => (
           <Card key={record.id} className="hover:shadow-lg transition-shadow">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -453,7 +456,8 @@ const HealthRecords = () => {
               </div>
             </CardContent>
           </Card>
-        ))}
+          ))
+        )}
       </div>
     </div>
   );
