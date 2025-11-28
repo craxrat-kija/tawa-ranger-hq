@@ -11,6 +11,7 @@ class Assessment extends Model
     protected $fillable = [
         'subject_id',
         'instructor_id',
+        'course_id',
         'title',
         'description',
         'type',
@@ -38,5 +39,10 @@ class Assessment extends Model
     public function grades(): HasMany
     {
         return $this->hasMany(Grade::class);
+    }
+
+    public function course(): BelongsTo
+    {
+        return $this->belongsTo(Course::class);
     }
 }

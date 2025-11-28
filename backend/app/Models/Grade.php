@@ -10,6 +10,7 @@ class Grade extends Model
     protected $fillable = [
         'assessment_id',
         'trainee_id',
+        'course_id',
         'score',
         'comments',
         'graded_by',
@@ -32,5 +33,10 @@ class Grade extends Model
     public function grader(): BelongsTo
     {
         return $this->belongsTo(User::class, 'graded_by');
+    }
+
+    public function course(): BelongsTo
+    {
+        return $this->belongsTo(Course::class);
     }
 }

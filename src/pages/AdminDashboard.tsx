@@ -5,6 +5,7 @@ import { RotatingLogo } from "@/components/RotatingLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Chatbot } from "@/components/Chatbot";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
+import { NotificationBar } from "@/components/NotificationBar";
 import Materials from "./Materials";
 import Gallery from "./Gallery";
 import Timetable from "./Timetable";
@@ -16,6 +17,8 @@ import Courses from "./Courses";
 import Assessments from "./Assessments";
 import Results from "./Results";
 import Subjects from "./Subjects";
+import DoctorActivities from "./DoctorActivities";
+import AdminDoctorView from "./AdminDoctorView";
 import {
   Users,
   BookOpen,
@@ -33,6 +36,8 @@ import {
   Image,
   MessageSquare,
   ClipboardCheck,
+  Activity,
+  Stethoscope,
 } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -62,6 +67,8 @@ const AdminDashboard = () => {
     { icon: MessageSquare, label: "Chat Board", path: "/admin/chat" },
     { icon: ClipboardCheck, label: "Assessments", path: "/admin/assessments" },
     { icon: FileText, label: "Results", path: "/admin/results" },
+    { icon: Activity, label: "Doctor Activities", path: "/admin/activities" },
+    { icon: Stethoscope, label: "Doctor Dashboard View", path: "/admin/doctor-view" },
   ];
 
   return (
@@ -102,8 +109,19 @@ const AdminDashboard = () => {
           <div className="p-4 border-t border-border">
             <div className="mb-3 text-white">
               <p className="font-semibold text-base">{user?.name}</p>
-              <p className="text-sm text-white/80">{user?.email}</p>
+              <p className="text-sm text-white/80">{user?.user_id || user?.email}</p>
             </div>
+            {user?.course_name && (
+              <div className="mb-3 px-3 py-2 bg-white/10 rounded-lg border border-white/20">
+                <div className="flex items-center gap-2 text-white">
+                  <BookOpen className="w-4 h-4 text-white/80" />
+                  <div>
+                    <p className="text-xs text-white/70">Course</p>
+                    <p className="text-sm font-semibold">{user.course_name}</p>
+                  </div>
+                </div>
+              </div>
+            )}
             <Button
               variant="ghost"
               className="w-full text-white hover:bg-white/20"
@@ -132,8 +150,22 @@ const AdminDashboard = () => {
         <header className="bg-cover bg-center border-b border-border p-6 sticky top-0 z-10" style={{ backgroundImage: `url(${tawaBackground})` }}>
           <div className="absolute inset-0 bg-gradient-military/70" />
           <div className="relative flex items-center justify-between">
-            <h1 className="text-3xl font-bold text-white">TAWA Admin Dashboard</h1>
-            <ThemeToggle />
+            <div>
+              <h1 className="text-3xl font-bold text-white">TAWA Admin Dashboard</h1>
+              <div className="flex items-center gap-4 mt-2">
+                <p className="text-white/80 text-sm">Manage courses, users, and system configuration</p>
+                {user?.course_name && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-white/20 rounded-lg border border-white/30 backdrop-blur-sm">
+                    <BookOpen className="w-4 h-4 text-white" />
+                    <span className="text-white font-semibold text-sm">{user.course_name}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <NotificationBar />
+              <ThemeToggle />
+            </div>
           </div>
         </header>
 
@@ -153,6 +185,8 @@ const AdminDashboard = () => {
             <Route path="/chat" element={<ChatBoard />} />
             <Route path="/assessments" element={<Assessments />} />
             <Route path="/results" element={<Results />} />
+            <Route path="/activities" element={<DoctorActivities />} />
+            <Route path="/doctor-view" element={<AdminDoctorView />} />
           </Routes>
         </div>
       </main>
@@ -200,9 +234,17 @@ const DashboardHome = () => {
         <h2 className="text-3xl font-bold text-primary mb-2">
           Welcome back, {user?.name}!
         </h2>
-        <p className="text-muted-foreground">
-          Manage your paramilitary training programs with precision and excellence.
-        </p>
+        <div className="flex items-center gap-4">
+          <p className="text-muted-foreground">
+            Manage your paramilitary training programs with precision and excellence.
+          </p>
+          {user?.course_name && (
+            <div className="flex items-center gap-2 px-3 py-1 bg-primary/10 rounded-lg">
+              <BookOpen className="w-4 h-4 text-primary" />
+              <span className="text-sm font-medium text-primary">{user.course_name}</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Statistics Counters */}

@@ -13,9 +13,15 @@ use App\Http\Controllers\Api\MessageController;
 use App\Http\Controllers\Api\SubjectController;
 use App\Http\Controllers\Api\AssessmentController;
 use App\Http\Controllers\Api\GradeController;
+use App\Http\Controllers\Api\SetupController;
+use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\ActivityLogController;
+use App\Http\Controllers\Api\CommentController;
 use Illuminate\Support\Facades\Route;
 
 // Public routes
+Route::get('/setup/check', [SetupController::class, 'checkSetup']);
+Route::post('/setup', [SetupController::class, 'setup']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
 
@@ -29,6 +35,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('users', UserController::class);
 
     // Courses
+    Route::get('/courses/{course}/enrolled-users', [CourseController::class, 'enrolledUsers']);
+    Route::post('/courses/{course}/enroll-user/{user}', [CourseController::class, 'enrollUser']);
+    Route::post('/courses/{course}/unenroll-user/{user}', [CourseController::class, 'unenrollUser']);
+    Route::post('/courses/{course}/enroll', [CourseController::class, 'enroll']);
+    Route::post('/courses/{course}/unenroll', [CourseController::class, 'unenroll']);
+    Route::get('/courses/my-courses', [CourseController::class, 'myCourses']);
+    Route::get('/courses/available', [CourseController::class, 'availableCourses']);
     Route::apiResource('courses', CourseController::class);
 
     // Materials
@@ -61,5 +74,22 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Grades
     Route::apiResource('grades', GradeController::class);
+
+    // Notifications
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::get('/notifications/unread', [NotificationController::class, 'unread']);
+    Route::get('/notifications/count', [NotificationController::class, 'count']);
+    Route::post('/notifications/{notification}/read', [NotificationController::class, 'markAsRead']);
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead']);
+    Route::delete('/notifications/{notification}', [NotificationController::class, 'destroy']);
+
+    // Activity Log (Admin only)
+    Route::get('/admin/doctor-activities', [ActivityLogController::class, 'doctorActivities']);
+
+    // Comments
+    Route::get('/comments', [CommentController::class, 'index']);
+    Route::post('/comments', [CommentController::class, 'store']);
+    Route::put('/comments/{comment}', [CommentController::class, 'update']);
+    Route::delete('/comments/{comment}', [CommentController::class, 'destroy']);
 });
 

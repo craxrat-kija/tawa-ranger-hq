@@ -68,11 +68,13 @@ const RegisterUsers = () => {
       // usersApi.getAll already handles array/object conversion
       setUsers(data.map((u: any) => ({
         id: u.id.toString(),
+        user_id: u.user_id || u.id.toString(),
         name: u.name,
         email: u.email,
         role: u.role,
         phone: u.phone || "",
         department: u.department || "",
+        course_name: u.course_name || null,
       })));
     } catch (error: any) {
       console.error('Error loading users:', error);
@@ -146,10 +148,13 @@ const RegisterUsers = () => {
           createData.subject_ids = selectedSubjects;
         }
 
-        await usersApi.create(createData);
+        const response = await usersApi.create(createData);
+        const registeredUser = response?.data || response;
+        const userId = registeredUser?.user_id || 'User ID pending';
+        
         toast({
           title: "User Registered",
-          description: `${formData.name} has been registered successfully.`,
+          description: `${formData.name} has been registered successfully. User ID: ${userId}`,
         });
       }
 
@@ -514,7 +519,7 @@ const RegisterUsers = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Name</TableHead>
-                      <TableHead>Email</TableHead>
+                      <TableHead>User ID</TableHead>
                       <TableHead>Phone</TableHead>
                       <TableHead>Department</TableHead>
                       {isAdmin && <TableHead>Actions</TableHead>}
@@ -524,7 +529,7 @@ const RegisterUsers = () => {
                     {users.filter(u => u.role === 'admin').map((user) => (
                       <TableRow key={user.id}>
                         <TableCell className="font-medium">{user.name}</TableCell>
-                        <TableCell>{user.email}</TableCell>
+                        <TableCell>{user.user_id || user.email}</TableCell>
                         <TableCell>{user.phone || "N/A"}</TableCell>
                         <TableCell>{user.department || "N/A"}</TableCell>
                         {isAdmin && (
@@ -576,7 +581,7 @@ const RegisterUsers = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Name</TableHead>
-                      <TableHead>Email</TableHead>
+                      <TableHead>User ID</TableHead>
                       <TableHead>Phone</TableHead>
                       <TableHead>Department</TableHead>
                       {isAdmin && <TableHead>Actions</TableHead>}
@@ -586,7 +591,7 @@ const RegisterUsers = () => {
                     {users.filter(u => u.role === 'instructor').map((user) => (
                       <TableRow key={user.id}>
                         <TableCell className="font-medium">{user.name}</TableCell>
-                        <TableCell>{user.email}</TableCell>
+                        <TableCell>{user.user_id || user.email}</TableCell>
                         <TableCell>{user.phone || "N/A"}</TableCell>
                         <TableCell>{user.department || "N/A"}</TableCell>
                         {isAdmin && (
@@ -638,7 +643,7 @@ const RegisterUsers = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Name</TableHead>
-                      <TableHead>Email</TableHead>
+                      <TableHead>User ID</TableHead>
                       <TableHead>Phone</TableHead>
                       <TableHead>Department</TableHead>
                       {isAdmin && <TableHead>Actions</TableHead>}
@@ -648,7 +653,7 @@ const RegisterUsers = () => {
                     {users.filter(u => u.role === 'doctor').map((user) => (
                       <TableRow key={user.id}>
                         <TableCell className="font-medium">{user.name}</TableCell>
-                        <TableCell>{user.email}</TableCell>
+                        <TableCell>{user.user_id || user.email}</TableCell>
                         <TableCell>{user.phone || "N/A"}</TableCell>
                         <TableCell>{user.department || "N/A"}</TableCell>
                         {isAdmin && (
@@ -700,7 +705,7 @@ const RegisterUsers = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Name</TableHead>
-                      <TableHead>Email</TableHead>
+                      <TableHead>User ID</TableHead>
                       <TableHead>Phone</TableHead>
                       <TableHead>Department</TableHead>
                       {isAdmin && <TableHead>Actions</TableHead>}
@@ -710,7 +715,7 @@ const RegisterUsers = () => {
                     {users.filter(u => u.role === 'trainee').map((user) => (
                       <TableRow key={user.id}>
                         <TableCell className="font-medium">{user.name}</TableCell>
-                        <TableCell>{user.email}</TableCell>
+                        <TableCell>{user.user_id || user.email}</TableCell>
                         <TableCell>{user.phone || "N/A"}</TableCell>
                         <TableCell>{user.department || "N/A"}</TableCell>
                         {isAdmin && (

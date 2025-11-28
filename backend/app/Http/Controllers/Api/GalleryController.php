@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Gallery;
+use App\Helpers\CourseHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -11,7 +12,17 @@ class GalleryController extends Controller
 {
     public function index(Request $request)
     {
-        $gallery = Gallery::with('uploader')->orderBy('date', 'desc')->get();
+        $currentUser = $request->user();
+        $courseId = CourseHelper::getCurrentCourseId($currentUser);
+        
+        $gallery = Gallery::with('uploader');
+        
+        // Always filter by current user's course_id for isolation
+        if ($courseId) {
+            $gallery->where('course_id', $courseId);
+        }
+        
+        $gallery = $gallery->orderBy('date', 'desc')->get();
 
         // Add full URL for each image
         $baseUrl = $request->getSchemeAndHttpHost();
@@ -29,6 +40,16 @@ class GalleryController extends Controller
 
     public function store(Request $request)
     {
+        $currentUser = $request->user();
+        $courseId = CourseHelper::getCurrentCourseId($currentUser);
+        
+        if (!$courseId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You must be assigned to a course to upload gallery photos.',
+            ], 403);
+        }
+        
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'image' => 'required|image|max:5120', // 5MB max
@@ -43,6 +64,7 @@ class GalleryController extends Controller
             'image_path' => $filePath,
             'date' => now(),
             'uploaded_by' => $request->user()->id,
+            'course_id' => $courseId,
         ]);
 
         $gallery->load('uploader');
@@ -58,6 +80,17 @@ class GalleryController extends Controller
 
     public function show(Request $request, Gallery $gallery)
     {
+        // Check if gallery belongs to the same course
+        $currentUser = $request->user();
+        $courseId = CourseHelper::getCurrentCourseId($currentUser);
+        
+        if ($courseId && $gallery->course_id !== $courseId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Access denied. Gallery item does not belong to your course.',
+            ], 403);
+        }
+        
         $gallery->load('uploader');
         $baseUrl = $request->getSchemeAndHttpHost();
         $gallery->image_url = $baseUrl . '/storage/' . $gallery->image_path;
@@ -68,8 +101,19 @@ class GalleryController extends Controller
         ]);
     }
 
-    public function destroy(Gallery $gallery)
+    public function destroy(Request $request, Gallery $gallery)
     {
+        // Check if gallery belongs to the same course
+        $currentUser = $request->user();
+        $courseId = CourseHelper::getCurrentCourseId($currentUser);
+        
+        if ($courseId && $gallery->course_id !== $courseId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Access denied. Gallery item does not belong to your course.',
+            ], 403);
+        }
+        
         Storage::disk('public')->delete($gallery->image_path);
         $gallery->delete();
 

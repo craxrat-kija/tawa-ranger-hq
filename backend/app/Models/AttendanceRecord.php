@@ -16,6 +16,7 @@ class AttendanceRecord extends Model
         'check_in_time',
         'check_out_time',
         'notes',
+        'course_id',
     ];
 
     protected function casts(): array

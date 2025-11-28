@@ -13,24 +13,30 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $request->validate([
-            'email' => 'required|email',
+            'user_id' => 'required|string',
             'password' => 'required',
         ]);
 
-        $user = User::where('email', $request->email)->first();
+        // Try to find user by user_id first, then fallback to email for backward compatibility
+        $user = User::where('user_id', $request->user_id)
+                    ->orWhere('email', $request->user_id)
+                    ->first();
 
         if (!$user || !Hash::check($request->password, $user->password)) {
             throw ValidationException::withMessages([
-                'email' => ['The provided credentials are incorrect.'],
+                'user_id' => ['The provided credentials are incorrect.'],
             ]);
         }
 
         // Prevent trainees from logging in
         if ($user->role === 'trainee') {
             throw ValidationException::withMessages([
-                'email' => ['Trainees do not have access to the login system. Please contact your administrator.'],
+                'user_id' => ['Trainees do not have access to the login system. Please contact your administrator.'],
             ]);
         }
+
+        // Load course relationship to get course name
+        $user->load('course');
 
         $token = $user->createToken('auth-token')->plainTextToken;
 
@@ -40,12 +46,15 @@ class AuthController extends Controller
             'data' => [
                 'user' => [
                     'id' => $user->id,
+                    'user_id' => $user->user_id ?? $user->id,
                     'name' => $user->name,
                     'email' => $user->email,
                     'role' => $user->role,
                     'phone' => $user->phone,
                     'department' => $user->department,
                     'avatar' => $user->avatar,
+                    'course_id' => $user->course_id,
+                    'course_name' => $user->course->name ?? null,
                 ],
                 'token' => $token,
             ],
@@ -103,17 +112,21 @@ class AuthController extends Controller
 
     public function user(Request $request)
     {
+        $user = $request->user()->load('course');
         return response()->json([
             'success' => true,
             'data' => [
                 'user' => [
-                    'id' => $request->user()->id,
-                    'name' => $request->user()->name,
-                    'email' => $request->user()->email,
-                    'role' => $request->user()->role,
-                    'phone' => $request->user()->phone,
-                    'department' => $request->user()->department,
-                    'avatar' => $request->user()->avatar,
+                    'id' => $user->id,
+                    'user_id' => $user->user_id ?? $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'role' => $user->role,
+                    'phone' => $user->phone,
+                    'department' => $user->department,
+                    'avatar' => $user->avatar,
+                    'course_id' => $user->course_id,
+                    'course_name' => $user->course->name ?? null,
                 ],
             ],
         ]);

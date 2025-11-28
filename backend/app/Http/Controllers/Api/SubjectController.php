@@ -4,13 +4,24 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Subject;
+use App\Helpers\CourseHelper;
 use Illuminate\Http\Request;
 
 class SubjectController extends Controller
 {
     public function index(Request $request)
     {
+        $currentUser = $request->user();
+        $courseId = CourseHelper::getCurrentCourseId($currentUser);
+        
         $subjects = Subject::query();
+
+        // Always filter by current user's course_id for isolation
+        if ($courseId) {
+            $subjects->where('course_id', $courseId);
+        } elseif ($request->has('course_id')) {
+            $subjects->where('course_id', $request->course_id);
+        }
 
         if ($request->has('instructor_id')) {
             $subjects->whereHas('instructors', function ($query) use ($request) {
@@ -27,11 +38,36 @@ class SubjectController extends Controller
 
     public function store(Request $request)
     {
+        $currentUser = $request->user();
+        $courseId = CourseHelper::getCurrentCourseId($currentUser);
+        
+        if (!$courseId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You must be assigned to a course to create subjects.',
+            ], 403);
+        }
+        
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'code' => 'nullable|string|max:255|unique:subjects,code',
+            'code' => 'nullable|string|max:255',
             'description' => 'nullable|string',
         ]);
+        
+        $validated['course_id'] = $courseId;
+
+        // Make code unique per course
+        if ($request->has('code') && $request->code) {
+            $exists = Subject::where('code', $request->code)
+                ->where('course_id', $courseId)
+                ->exists();
+            if ($exists) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Subject code already exists for this course',
+                ], 422);
+            }
+        }
 
         $subject = Subject::create($validated);
 
@@ -42,8 +78,19 @@ class SubjectController extends Controller
         ], 201);
     }
 
-    public function show(Subject $subject)
+    public function show(Request $request, Subject $subject)
     {
+        // Check if subject belongs to the same course
+        $currentUser = $request->user();
+        $courseId = CourseHelper::getCurrentCourseId($currentUser);
+        
+        if ($courseId && $subject->course_id !== $courseId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Access denied. Subject does not belong to your course.',
+            ], 403);
+        }
+        
         return response()->json([
             'success' => true,
             'data' => $subject->load('instructors'),
@@ -52,11 +99,36 @@ class SubjectController extends Controller
 
     public function update(Request $request, Subject $subject)
     {
+        // Check if subject belongs to the same course
+        $currentUser = $request->user();
+        $courseId = CourseHelper::getCurrentCourseId($currentUser);
+        
+        if ($courseId && $subject->course_id !== $courseId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Access denied. Subject does not belong to your course.',
+            ], 403);
+        }
+        
         $validated = $request->validate([
             'name' => 'sometimes|string|max:255',
-            'code' => ['nullable', 'string', 'max:255', \Illuminate\Validation\Rule::unique('subjects')->ignore($subject->id)],
+            'code' => 'nullable|string|max:255',
             'description' => 'nullable|string',
         ]);
+
+        // Make code unique per course
+        if ($request->has('code') && $request->code) {
+            $exists = Subject::where('code', $request->code)
+                ->where('course_id', $subject->course_id)
+                ->where('id', '!=', $subject->id)
+                ->exists();
+            if ($exists) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Subject code already exists for this course',
+                ], 422);
+            }
+        }
 
         $subject->update($validated);
 
@@ -67,8 +139,19 @@ class SubjectController extends Controller
         ]);
     }
 
-    public function destroy(Subject $subject)
+    public function destroy(Request $request, Subject $subject)
     {
+        // Check if subject belongs to the same course
+        $currentUser = $request->user();
+        $courseId = CourseHelper::getCurrentCourseId($currentUser);
+        
+        if ($courseId && $subject->course_id !== $courseId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Access denied. Subject does not belong to your course.',
+            ], 403);
+        }
+        
         $subject->delete();
 
         return response()->json([

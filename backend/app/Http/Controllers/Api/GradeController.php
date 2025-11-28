@@ -5,13 +5,24 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Grade;
 use App\Models\Assessment;
+use App\Helpers\CourseHelper;
 use Illuminate\Http\Request;
 
 class GradeController extends Controller
 {
     public function index(Request $request)
     {
+        $currentUser = $request->user();
+        $courseId = CourseHelper::getCurrentCourseId($currentUser);
+        
         $grades = Grade::with(['assessment.subject', 'assessment.instructor', 'trainee', 'grader']);
+
+        // Always filter by current user's course_id for isolation
+        if ($courseId) {
+            $grades->where('course_id', $courseId);
+        } elseif ($request->has('course_id')) {
+            $grades->where('course_id', $request->course_id);
+        }
 
         if ($request->has('assessment_id')) {
             $grades->where('assessment_id', $request->assessment_id);
@@ -66,6 +77,7 @@ class GradeController extends Controller
         }
 
         $validated['graded_by'] = $request->user()->id;
+        $validated['course_id'] = $assessment->course_id;
 
         $grade = Grade::create($validated);
 
@@ -76,8 +88,19 @@ class GradeController extends Controller
         ], 201);
     }
 
-    public function show(Grade $grade)
+    public function show(Request $request, Grade $grade)
     {
+        // Check if grade belongs to the same course
+        $currentUser = $request->user();
+        $courseId = CourseHelper::getCurrentCourseId($currentUser);
+        
+        if ($courseId && $grade->course_id !== $courseId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Access denied. Grade does not belong to your course.',
+            ], 403);
+        }
+        
         return response()->json([
             'success' => true,
             'data' => $grade->load(['assessment.subject', 'trainee', 'grader']),
@@ -86,6 +109,17 @@ class GradeController extends Controller
 
     public function update(Request $request, Grade $grade)
     {
+        // Check if grade belongs to the same course
+        $currentUser = $request->user();
+        $courseId = CourseHelper::getCurrentCourseId($currentUser);
+        
+        if ($courseId && $grade->course_id !== $courseId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Access denied. Grade does not belong to your course.',
+            ], 403);
+        }
+        
         // Only allow instructor who created the assessment, grader, or admin to update
         $assessment = $grade->assessment;
         $canEdit = $assessment->instructor_id === $request->user()->id 
@@ -123,6 +157,17 @@ class GradeController extends Controller
 
     public function destroy(Request $request, Grade $grade)
     {
+        // Check if grade belongs to the same course
+        $currentUser = $request->user();
+        $courseId = CourseHelper::getCurrentCourseId($currentUser);
+        
+        if ($courseId && $grade->course_id !== $courseId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Access denied. Grade does not belong to your course.',
+            ], 403);
+        }
+        
         // Only allow instructor who created the assessment, grader, or admin to delete
         $assessment = $grade->assessment;
         $canDelete = $assessment->instructor_id === $request->user()->id 

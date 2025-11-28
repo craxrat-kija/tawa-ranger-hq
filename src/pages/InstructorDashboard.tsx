@@ -1,9 +1,11 @@
 import { Routes, Route, Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCourse } from "@/contexts/CourseContext";
 import { Button } from "@/components/ui/button";
 import { RotatingLogo } from "@/components/RotatingLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Chatbot } from "@/components/Chatbot";
+import { NotificationBar } from "@/components/NotificationBar";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
 import Materials from "./Materials";
 import Gallery from "./Gallery";
@@ -13,6 +15,7 @@ import ChatBoard from "./ChatBoard";
 import ViewTrainees from "./ViewTrainees";
 import Assessments from "./Assessments";
 import Results from "./Results";
+import Courses from "./Courses";
 import {
   Upload,
   Calendar,
@@ -25,6 +28,7 @@ import {
   ClipboardCheck,
   MessageSquare,
   Image,
+  RefreshCw,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -38,6 +42,7 @@ import tawaBackground from "@/assets/tawa-background.jpg";
 
 const InstructorDashboard = () => {
   const { logout, user } = useAuth();
+  const { selectedCourse, setSelectedCourse } = useCourse();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -48,6 +53,7 @@ const InstructorDashboard = () => {
 
   const menuItems = [
     { icon: BookOpen, label: "My Courses", path: "/instructor" },
+    { icon: BookOpen, label: "Courses", path: "/instructor/courses" },
     { icon: Users, label: "View Trainees", path: "/instructor/trainees" },
     { icon: Upload, label: "Materials", path: "/instructor/materials" },
     { icon: Image, label: "Gallery", path: "/instructor/gallery" },
@@ -96,8 +102,19 @@ const InstructorDashboard = () => {
           <div className="p-4 border-t border-border">
             <div className="mb-3 text-white">
               <p className="font-semibold text-base">{user?.name}</p>
-              <p className="text-sm text-white/80">Instructor</p>
+              <p className="text-sm text-white/80">{user?.user_id || "Instructor"}</p>
             </div>
+            {user?.course_name && (
+              <div className="mb-3 px-3 py-2 bg-white/10 rounded-lg border border-white/20">
+                <div className="flex items-center gap-2 text-white">
+                  <BookOpen className="w-4 h-4 text-white/80" />
+                  <div>
+                    <p className="text-xs text-white/70">Course</p>
+                    <p className="text-sm font-semibold">{user.course_name}</p>
+                  </div>
+                </div>
+              </div>
+            )}
             <Button
               variant="ghost"
               className="w-full text-white hover:bg-white/20"
@@ -126,8 +143,38 @@ const InstructorDashboard = () => {
         <header className="bg-cover bg-center border-b border-border p-6 sticky top-0 z-10" style={{ backgroundImage: `url(${tawaBackground})` }}>
           <div className="absolute inset-0 bg-gradient-military/70" />
           <div className="relative flex items-center justify-between">
-            <h1 className="text-3xl font-bold text-white">TAWA Instructor Dashboard</h1>
-            <ThemeToggle />
+            <div>
+              <h1 className="text-3xl font-bold text-white">TAWA Instructor Dashboard</h1>
+              <div className="flex items-center gap-4 mt-2">
+                {selectedCourse ? (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-white/20 rounded-lg border border-white/30 backdrop-blur-sm">
+                    <BookOpen className="w-4 h-4 text-white" />
+                    <span className="text-white font-semibold text-sm">{selectedCourse.name}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedCourse(null);
+                        navigate("/select-course");
+                      }}
+                      className="text-white/80 hover:text-white hover:bg-white/20 h-6 px-2 ml-2"
+                    >
+                      <RefreshCw className="w-3 h-3 mr-1" />
+                      Switch Course
+                    </Button>
+                  </div>
+                ) : user?.course_name ? (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-white/20 rounded-lg border border-white/30 backdrop-blur-sm">
+                    <BookOpen className="w-4 h-4 text-white" />
+                    <span className="text-white font-semibold text-sm">{user.course_name}</span>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <NotificationBar />
+              <ThemeToggle />
+            </div>
           </div>
         </header>
 
@@ -135,6 +182,7 @@ const InstructorDashboard = () => {
         <div className="p-6">
           <Routes>
             <Route path="/" element={<InstructorHome />} />
+            <Route path="/courses" element={<Courses />} />
             <Route path="/trainees" element={<ViewTrainees />} />
             <Route path="/materials" element={<Materials />} />
             <Route path="/gallery" element={<Gallery />} />

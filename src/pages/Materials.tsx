@@ -39,8 +39,10 @@ const Materials = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    loadMaterials();
-  }, [selectedSubject, searchQuery]);
+    if (user?.course_id) {
+      loadMaterials();
+    }
+  }, [selectedSubject, searchQuery, user?.course_id]);
 
   const loadMaterials = async () => {
     try {
@@ -48,7 +50,8 @@ const Materials = () => {
       const data = await materialsApi.getAll(
         selectedSubject !== "all" ? selectedSubject : undefined,
         undefined,
-        searchQuery || undefined
+        searchQuery || undefined,
+        user?.course_id || undefined
       );
       const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
       setMaterials(data.map((m: any) => ({
@@ -137,13 +140,41 @@ const Materials = () => {
       return;
     }
 
+    // Ensure name is not empty - trim whitespace and fallback to filename
+    const materialName = (uploadData.name && uploadData.name.trim()) || uploadData.file.name;
+    
+    // Validate name length (max 255 characters as per backend)
+    if (materialName.length > 255) {
+      toast({
+        title: "Name Too Long",
+        description: "Material name must be 255 characters or less",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate subject is not empty
+    if (!uploadData.subject || !uploadData.subject.trim()) {
+      toast({
+        title: "Invalid Subject",
+        description: "Please select a valid subject",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setUploading(true);
     
     try {
+      if (!user?.course_id) {
+        throw new Error("Course ID is missing. Please ensure you are assigned to a course.");
+      }
+      
       await materialsApi.create(
         uploadData.file,
-        uploadData.name || uploadData.file.name,
-        uploadData.subject
+        materialName,
+        uploadData.subject,
+        user.course_id
       );
       
       setShowUploadDialog(false);

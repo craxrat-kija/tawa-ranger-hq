@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import tawaBackground from "@/assets/tawa-background.jpg";
 
 const Login = () => {
-  const [email, setEmail] = useState("");
+  const [userId, setUserId] = useState("");
   const [password, setPassword] = useState("");
   const [showCredentials, setShowCredentials] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
@@ -19,10 +19,11 @@ const Login = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // Updated credentials to use user_id or email for backward compatibility
   const credentials = [
-    { role: "Admin", email: "admin@tawa.go.tz", password: "tawa2024", color: "bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400" },
-    { role: "Instructor", email: "instructor@tawa.go.tz", password: "tawa2024", color: "bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400" },
-    { role: "Doctor", email: "doctor@tawa.go.tz", password: "tawa2024", color: "bg-green-500/10 border-green-500/20 text-green-600 dark:text-green-400" },
+    { role: "Admin", user_id: "admin@tawa.go.tz", password: "tawa2024", color: "bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400" },
+    { role: "Instructor", user_id: "instructor@tawa.go.tz", password: "tawa2024", color: "bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400" },
+    { role: "Doctor", user_id: "doctor@tawa.go.tz", password: "tawa2024", color: "bg-green-500/10 border-green-500/20 text-green-600 dark:text-green-400" },
   ];
 
   const copyToClipboard = (text: string, index: number) => {
@@ -35,8 +36,8 @@ const Login = () => {
     setTimeout(() => setCopiedIndex(null), 2000);
   };
 
-  const fillCredentials = (credEmail: string, credPassword: string) => {
-    setEmail(credEmail);
+  const fillCredentials = (credUserId: string, credPassword: string) => {
+    setUserId(credUserId);
     setPassword(credPassword);
     setShowCredentials(false);
   };
@@ -45,7 +46,7 @@ const Login = () => {
     e.preventDefault();
     
     try {
-      const result = await login(email, password);
+      const result = await login(userId, password);
       
       if (result.success && result.user) {
         toast({
@@ -66,6 +67,7 @@ const Login = () => {
           return;
         }
         
+        // Navigate based on role
         if (userRole === "admin") {
           navigate("/admin");
         } else if (userRole === "doctor") {
@@ -73,12 +75,12 @@ const Login = () => {
         } else if (userRole === "instructor") {
           navigate("/instructor");
         } else {
-          navigate("/instructor"); // default
+          navigate("/admin"); // Default fallback
         }
       } else {
         toast({
           title: "Login Failed",
-          description: "Invalid credentials. Please check your email and password.",
+          description: "Invalid credentials. Please check your User ID and password.",
           variant: "destructive",
         });
       }
@@ -125,19 +127,22 @@ const Login = () => {
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="email" className="flex items-center gap-2">
-                <Mail className="w-4 h-4" />
-                Email Address
+              <Label htmlFor="user_id" className="flex items-center gap-2">
+                <User className="w-4 h-4" />
+                User ID / Username
               </Label>
               <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@tawa.go.tz"
+                id="user_id"
+                type="text"
+                value={userId}
+                onChange={(e) => setUserId(e.target.value)}
+                placeholder="e.g., TAWA-20251118-AD001 or admin@tawa.go.tz"
                 required
                 className="border-primary/30"
               />
+              <p className="text-xs text-muted-foreground">
+                Enter your User ID (e.g., TAWA-20251118-IN001) or email for existing users
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -189,7 +194,7 @@ const Login = () => {
                     <div
                       key={index}
                       className={`p-3 rounded-lg border cursor-pointer hover:opacity-80 transition-opacity ${cred.color}`}
-                      onClick={() => fillCredentials(cred.email, cred.password)}
+                      onClick={() => fillCredentials(cred.user_id, cred.password)}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex-1">
@@ -198,12 +203,12 @@ const Login = () => {
                           </div>
                           <div className="text-xs space-y-1">
                             <div className="flex items-center gap-2">
-                              <Mail className="w-3 h-3" />
-                              <span className="font-mono">{cred.email}</span>
+                              <User className="w-3 h-3" />
+                              <span className="font-mono">{cred.user_id}</span>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  copyToClipboard(cred.email, index * 2);
+                                  copyToClipboard(cred.user_id, index * 2);
                                 }}
                                 className="ml-auto p-1 hover:bg-white/20 rounded"
                               >

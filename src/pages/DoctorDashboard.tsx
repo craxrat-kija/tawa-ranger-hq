@@ -1,5 +1,6 @@
 import { Routes, Route, Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCourse } from "@/contexts/CourseContext";
 import { usePatients } from "@/contexts/PatientContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { RotatingLogo } from "@/components/RotatingLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Chatbot } from "@/components/Chatbot";
+import { NotificationBar } from "@/components/NotificationBar";
 import ViewTrainees from "./ViewTrainees";
 import PatientManagement from "./PatientManagement";
 import {
@@ -20,13 +22,16 @@ import {
   UserPlus,
   FileHeart,
   Activity,
+  BookOpen,
+  RefreshCw,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import tawaBackground from "@/assets/tawa-background.jpg";
 
 const DoctorDashboard = () => {
   const { logout, user } = useAuth();
+  const { selectedCourse, setSelectedCourse } = useCourse();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -82,8 +87,19 @@ const DoctorDashboard = () => {
           <div className="p-4 border-t border-border">
             <div className="mb-3 text-white">
               <p className="font-semibold text-base">{user?.name}</p>
-              <p className="text-sm text-white/80">{user?.email}</p>
+              <p className="text-sm text-white/80">{user?.user_id || user?.email}</p>
             </div>
+            {user?.course_name && (
+              <div className="mb-3 px-3 py-2 bg-white/10 rounded-lg border border-white/20">
+                <div className="flex items-center gap-2 text-white">
+                  <BookOpen className="w-4 h-4 text-white/80" />
+                  <div>
+                    <p className="text-xs text-white/70">Course</p>
+                    <p className="text-sm font-semibold">{user.course_name}</p>
+                  </div>
+                </div>
+              </div>
+            )}
             <Button
               variant="ghost"
               className="w-full text-white hover:bg-white/20"
@@ -108,8 +124,38 @@ const DoctorDashboard = () => {
             >
               {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
-            <h1 className="text-3xl font-bold text-white">Medical Officer Portal</h1>
-            <ThemeToggle />
+            <div>
+              <h1 className="text-3xl font-bold text-white">Medical Officer Portal</h1>
+              <div className="flex items-center gap-4 mt-2">
+                {selectedCourse ? (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-white/20 rounded-lg border border-white/30 backdrop-blur-sm">
+                    <BookOpen className="w-4 h-4 text-white" />
+                    <span className="text-white font-semibold text-sm">{selectedCourse.name}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedCourse(null);
+                        navigate("/select-course");
+                      }}
+                      className="text-white/80 hover:text-white hover:bg-white/20 h-6 px-2 ml-2"
+                    >
+                      <RefreshCw className="w-3 h-3 mr-1" />
+                      Switch Course
+                    </Button>
+                  </div>
+                ) : user?.course_name ? (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-white/20 rounded-lg border border-white/30 backdrop-blur-sm">
+                    <BookOpen className="w-4 h-4 text-white" />
+                    <span className="text-white font-semibold text-sm">{user.course_name}</span>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <NotificationBar />
+              <ThemeToggle />
+            </div>
           </div>
         </header>
 
@@ -132,8 +178,27 @@ const DoctorDashboard = () => {
 
 // Dashboard Home Component
 const DoctorHome = () => {
+  const navigate = useNavigate();
+  const { patients, reports, attendance } = usePatients();
+
+  // Calculate real statistics
+  const totalPatients = patients.length;
+  const totalReports = reports.length;
+  const recentReports = reports.filter((r: any) => {
+    const reportDate = new Date(r.date);
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    return reportDate >= weekAgo;
+  }).length;
+  const pendingCases = patients.length > 0 ? Math.max(0, totalPatients - totalReports) : 0;
+
+  const handleNavigate = (path: string) => {
+    console.log('Navigating to:', path);
+    navigate(path);
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" style={{ position: 'relative', zIndex: 1 }}>
       <div>
         <h2 className="text-3xl font-bold text-primary mb-2">Medical Dashboard</h2>
         <p className="text-muted-foreground">Manage trainee health records and registrations</p>
@@ -147,8 +212,8 @@ const DoctorHome = () => {
             <Users className="w-4 h-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-primary">248</div>
-            <p className="text-xs text-muted-foreground">Active trainees</p>
+            <div className="text-3xl font-bold text-primary">{totalPatients}</div>
+            <p className="text-xs text-muted-foreground">Active patients</p>
           </CardContent>
         </Card>
 
@@ -158,7 +223,7 @@ const DoctorHome = () => {
             <Activity className="w-4 h-4 text-accent" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-accent">42</div>
+            <div className="text-3xl font-bold text-accent">{recentReports}</div>
             <p className="text-xs text-muted-foreground">This week</p>
           </CardContent>
         </Card>
@@ -169,37 +234,60 @@ const DoctorHome = () => {
             <FileHeart className="w-4 h-4 text-destructive" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-destructive">7</div>
+            <div className="text-3xl font-bold text-destructive">{pendingCases}</div>
             <p className="text-xs text-muted-foreground">Requires attention</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Quick Actions */}
-      <Card>
+      <Card style={{ position: 'relative', zIndex: 2 }}>
         <CardHeader>
           <CardTitle>Quick Actions</CardTitle>
           <CardDescription>Common medical tasks</CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Link to="/doctor/register">
-            <Button className="w-full h-20 text-lg bg-gradient-military">
-              <UserPlus className="w-6 h-6 mr-2" />
-              Register Patient
-            </Button>
-          </Link>
-          <Link to="/doctor/patients">
-            <Button variant="outline" className="w-full h-20 text-lg">
-              <FileHeart className="w-6 h-6 mr-2" />
-              Manage Patients
-            </Button>
-          </Link>
-          <Link to="/doctor/records">
-            <Button variant="outline" className="w-full h-20 text-lg">
-              <FileHeart className="w-6 h-6 mr-2" />
-              Health Records
-            </Button>
-          </Link>
+          <Button 
+            type="button"
+            className="w-full h-20 text-lg bg-gradient-military cursor-pointer"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleNavigate("/doctor/register");
+            }}
+            style={{ pointerEvents: 'auto', zIndex: 10 }}
+          >
+            <UserPlus className="w-6 h-6 mr-2" />
+            Register Patient
+          </Button>
+          <Button 
+            type="button"
+            variant="outline" 
+            className="w-full h-20 text-lg cursor-pointer"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleNavigate("/doctor/patients");
+            }}
+            style={{ pointerEvents: 'auto', zIndex: 10 }}
+          >
+            <FileHeart className="w-6 h-6 mr-2" />
+            Manage Patients
+          </Button>
+          <Button 
+            type="button"
+            variant="outline" 
+            className="w-full h-20 text-lg cursor-pointer"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleNavigate("/doctor/records");
+            }}
+            style={{ pointerEvents: 'auto', zIndex: 10 }}
+          >
+            <FileHeart className="w-6 h-6 mr-2" />
+            Health Records
+          </Button>
         </CardContent>
       </Card>
     </div>
@@ -210,7 +298,8 @@ const DoctorHome = () => {
 const RegisterUser = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { addPatient } = usePatients();
+  const { addPatient, refreshData } = usePatients();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
@@ -233,6 +322,7 @@ const RegisterUser = () => {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       await addPatient({
         fullName: formData.fullName,
@@ -243,6 +333,9 @@ const RegisterUser = () => {
         medicalHistory: formData.medicalHistory || "None",
         emergencyContact: formData.emergencyContact,
       });
+
+      // Refresh data after adding patient
+      await refreshData();
 
       toast({
         title: "Patient Registered",
@@ -270,6 +363,8 @@ const RegisterUser = () => {
         description: error instanceof Error ? error.message : "Failed to register patient. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -385,9 +480,9 @@ const RegisterUser = () => {
               />
             </div>
 
-            <Button type="submit" className="w-full bg-gradient-military">
+            <Button type="submit" className="w-full bg-gradient-military" disabled={isSubmitting}>
               <UserPlus className="w-4 h-4 mr-2" />
-              Register User
+              {isSubmitting ? "Registering..." : "Register User"}
             </Button>
           </form>
         </CardContent>
@@ -398,7 +493,22 @@ const RegisterUser = () => {
 
 // Health Records Component
 const HealthRecords = () => {
-  const { patients, reports } = usePatients();
+  const { patients, reports, refreshData } = usePatients();
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        await refreshData();
+      } catch (error) {
+        console.error('Failed to load health records:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadData();
+  }, [refreshData]);
 
   // Get latest report for each patient
   const patientRecords = patients.map(patient => {
@@ -413,6 +523,17 @@ const HealthRecords = () => {
       status: latestReport ? "Healthy" : "No records",
     };
   });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold text-primary mb-2">Health Records</h2>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

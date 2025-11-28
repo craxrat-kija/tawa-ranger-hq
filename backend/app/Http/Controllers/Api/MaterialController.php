@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Material;
+use App\Helpers\CourseHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -11,7 +12,18 @@ class MaterialController extends Controller
 {
     public function index(Request $request)
     {
+        $currentUser = $request->user();
+        $courseId = CourseHelper::getCurrentCourseId($currentUser);
+        
         $materials = Material::with('uploader');
+
+        // Always filter by current user's course_id for isolation
+        if ($courseId) {
+            $materials->where('course_id', $courseId);
+        } elseif ($request->has('course_id')) {
+            // Fallback to request parameter if user has no course (shouldn't happen)
+            $materials->where('course_id', $request->course_id);
+        }
 
         if ($request->has('subject')) {
             $materials->where('subject', $request->subject);
@@ -33,6 +45,16 @@ class MaterialController extends Controller
 
     public function store(Request $request)
     {
+        $currentUser = $request->user();
+        $courseId = CourseHelper::getCurrentCourseId($currentUser);
+        
+        if (!$courseId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You must be assigned to a course to upload materials.',
+            ], 403);
+        }
+        
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'subject' => 'required|string',
@@ -50,6 +72,7 @@ class MaterialController extends Controller
             'name' => $validated['name'],
             'type' => $fileType,
             'subject' => $validated['subject'],
+            'course_id' => $courseId, // Use current user's course
             'file_path' => $filePath,
             'file_size' => $fileSize,
             'uploaded_by' => $request->user()->id,
@@ -62,8 +85,19 @@ class MaterialController extends Controller
         ], 201);
     }
 
-    public function show(Material $material)
+    public function show(Request $request, Material $material)
     {
+        // Check if material belongs to the same course
+        $currentUser = $request->user();
+        $courseId = CourseHelper::getCurrentCourseId($currentUser);
+        
+        if ($courseId && $material->course_id !== $courseId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Access denied. Material does not belong to your course.',
+            ], 403);
+        }
+        
         return response()->json([
             'success' => true,
             'data' => $material->load('uploader'),
@@ -82,8 +116,19 @@ class MaterialController extends Controller
         return Storage::disk('public')->download($material->file_path, $material->name);
     }
 
-    public function destroy(Material $material)
+    public function destroy(Request $request, Material $material)
     {
+        // Check if material belongs to the same course
+        $currentUser = $request->user();
+        $courseId = CourseHelper::getCurrentCourseId($currentUser);
+        
+        if ($courseId && $material->course_id !== $courseId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Access denied. Material does not belong to your course.',
+            ], 403);
+        }
+        
         Storage::disk('public')->delete($material->file_path);
         $material->delete();
 

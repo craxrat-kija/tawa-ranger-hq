@@ -37,13 +37,26 @@ const apiRequest = async <T>(
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: 'An error occurred' }));
+    let errorMessage = 'An error occurred';
+    let errorData: any = null;
+    try {
+      errorData = await response.json();
     // Handle Laravel validation errors
-    if (error.errors) {
-      const errorMessages = Object.values(error.errors).flat().join(', ');
-      throw new Error(errorMessages || error.message || `HTTP error! status: ${response.status}`);
+      if (errorData.errors) {
+        const errorMessages = Object.values(errorData.errors).flat().join(', ');
+        errorMessage = errorMessages || errorData.message || errorMessage;
+      } else {
+        errorMessage = errorData.message || errorMessage;
+      }
+    } catch (e) {
+      errorMessage = `HTTP error! status: ${response.status}`;
     }
-    throw new Error(error.message || `HTTP error! status: ${response.status}`);
+    const error = new Error(errorMessage);
+    (error as any).response = {
+      status: response.status,
+      data: errorData,
+    };
+    throw error;
   }
 
   const data = await response.json();
@@ -53,7 +66,7 @@ const apiRequest = async <T>(
 
 // Auth API
 export const authApi = {
-  login: async (email: string, password: string) => {
+  login: async (userId: string, password: string) => {
     try {
       const response = await fetch(`${API_BASE_URL}/login`, {
         method: 'POST',
@@ -61,13 +74,13 @@ export const authApi = {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ user_id: userId, password }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        const error = new Error(data.message || data.errors?.email?.[0] || `HTTP error! status: ${response.status}`);
+        const error = new Error(data.message || data.errors?.user_id?.[0] || data.errors?.email?.[0] || `HTTP error! status: ${response.status}`);
         (error as any).response = { data };
         throw error;
       }
@@ -107,13 +120,27 @@ export const authApi = {
   },
 
   getCurrentUser: async () => {
+    try {
     const response = await apiRequest<any>('/user');
     // Handle response structure - backend returns { success: true, data: { user: ... } }
     // apiRequest returns data.data || data, so response could be { user: ... } or just user object
+      if (response && typeof response === 'object') {
     if (response.user) {
-      return response.user;
+          return { user: response.user };
+        }
+        // If response itself is the user object
+        if (response.id) {
+          return { user: response };
+        }
     }
     return response;
+    } catch (error: any) {
+      // Re-throw with more context
+      if (error.message) {
+        throw error;
+      }
+      throw new Error('Failed to get current user');
+    }
   },
 };
 
@@ -235,8 +262,9 @@ export const patientsApi = {
 // Medical Reports API
 export const medicalReportsApi = {
   getAll: async () => {
-    const response = await apiRequest<any[]>('/medical-reports');
-    return response;
+    const response = await apiRequest<any>('/medical-reports');
+    // Handle both array and object responses
+    return Array.isArray(response) ? response : (response?.data || []);
   },
 
   create: async (reportData: any) => {
@@ -279,6 +307,10 @@ export const coursesApi = {
 
   getById: async (id: string) => {
     const response = await apiRequest<any>(`/courses/${id}`);
+    // Handle response structure: { success: true, data: {...} } or just {...}
+    if (response && typeof response === 'object' && 'data' in response) {
+      return response.data;
+    }
     return response;
   },
 
@@ -290,6 +322,7 @@ export const coursesApi = {
     start_date: string;
     status?: 'active' | 'completed' | 'upcoming';
     description?: string;
+    content?: string;
   }) => {
     const response = await apiRequest<any>('/courses', {
       method: 'POST',
@@ -306,6 +339,7 @@ export const coursesApi = {
     start_date: string;
     status: 'active' | 'completed' | 'upcoming';
     description: string;
+    content: string;
     trainees: number;
   }>) => {
     const response = await apiRequest<any>(`/courses/${id}`, {
@@ -320,15 +354,72 @@ export const coursesApi = {
       method: 'DELETE',
     });
   },
+
+  enroll: async (courseId: string) => {
+    const response = await apiRequest<any>(`/courses/${courseId}/enroll`, {
+      method: 'POST',
+    });
+    return response;
+  },
+
+  unenroll: async (courseId: string) => {
+    const response = await apiRequest<any>(`/courses/${courseId}/unenroll`, {
+      method: 'POST',
+    });
+    return response;
+  },
+
+  getMyCourses: async () => {
+    const response = await apiRequest<any>('/courses/my/enrolled');
+    // Handle response structure: { success: true, data: [...] } or just [...]
+    if (response && typeof response === 'object') {
+      if (Array.isArray(response)) {
+        return response;
+      }
+      if ('data' in response && Array.isArray(response.data)) {
+        return response.data;
+      }
+    }
+    return [];
+  },
+
+  getAvailableCourses: async () => {
+    const response = await apiRequest<any>('/courses/available');
+    return Array.isArray(response) ? response : (response?.data || []);
+  },
+
+  enrollUser: async (courseId: string, userId: string) => {
+    const response = await apiRequest<any>(`/courses/${courseId}/enroll-user/${userId}`, {
+      method: 'POST',
+    });
+    return response;
+  },
+
+  unenrollUser: async (courseId: string, userId: string) => {
+    const response = await apiRequest<any>(`/courses/${courseId}/unenroll-user/${userId}`, {
+      method: 'POST',
+    });
+    return response;
+  },
+
+  getEnrolledUsers: async (courseId: string) => {
+    const response = await apiRequest<any>(`/courses/${courseId}/enrolled-users`);
+    // Handle response structure: { success: true, data: [...] } or just [...]
+    if (response && typeof response === 'object' && 'data' in response) {
+      return Array.isArray(response.data) ? response.data : [];
+    }
+    return Array.isArray(response) ? response : [];
+  },
 };
 
 // Materials API
 export const materialsApi = {
-  getAll: async (subject?: string, type?: string, search?: string) => {
+  getAll: async (subject?: string, type?: string, search?: string, courseId?: number) => {
     const params = new URLSearchParams();
     if (subject) params.append('subject', subject);
     if (type) params.append('type', type);
     if (search) params.append('search', search);
+    if (courseId) params.append('course_id', courseId.toString());
     const endpoint = params.toString() ? `/materials?${params}` : '/materials';
     const response = await apiRequest<any>(endpoint);
     // Handle both array and object responses
@@ -340,48 +431,118 @@ export const materialsApi = {
     return response;
   },
 
-  create: async (file: File, name: string, subject: string) => {
+  create: async (file: File, name: string, subject: string, courseId: number) => {
+    // Validate inputs
+    if (!file || !(file instanceof File)) {
+      throw new Error('Invalid file provided');
+    }
+    
+    if (!subject || !subject.trim()) {
+      throw new Error('Subject is required');
+    }
+
     const token = getToken();
     const formData = new FormData();
-    formData.append('file', file);
-    formData.append('name', name);
-    formData.append('subject', subject);
+    
+    // Ensure name is not empty - use file name if name is empty or whitespace
+    const materialName = (name && name.trim()) || file.name;
+    
+    // Final validation - ensure we have a name
+    if (!materialName || !materialName.trim()) {
+      throw new Error('Material name is required');
+    }
+    
+    // Append file - make sure it's the actual File object
+    formData.append('file', file, file.name);
+    formData.append('name', materialName);
+    formData.append('subject', subject.trim());
+    // Note: course_id is not needed in the request as backend gets it from user's course assignment
+    // But we'll keep it for potential future use
+    formData.append('course_id', courseId.toString());
+
+    // Debug logging - verify FormData contents
+    console.log('Uploading material:', {
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
+      name: materialName,
+      subject: subject.trim(),
+      courseId: courseId,
+      hasToken: !!token,
+      apiUrl: `${API_BASE_URL}/materials`,
+    });
+
+    // Verify FormData has the file
+    if (!formData.has('file')) {
+      throw new Error('File was not added to FormData');
+    }
 
     const headers: HeadersInit = {
       'Accept': 'application/json',
+      // DO NOT set Content-Type - browser will set it with boundary for multipart/form-data
     };
 
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
+    try {
     const response = await fetch(`${API_BASE_URL}/materials`, {
       method: 'POST',
       headers,
       body: formData,
     });
 
+      // Log response status
+      console.log('Upload response status:', response.status, response.statusText);
+
     if (!response.ok) {
       let errorMessage = 'An error occurred';
+        let errorData: any = null;
+        
       try {
-        const errorData = await response.json();
+          const responseText = await response.text();
+          console.error('Error response text:', responseText);
+          
+          if (responseText) {
+            errorData = JSON.parse(responseText);
+            console.error('Material upload error response:', errorData);
+          }
+          
+          if (errorData) {
         if (errorData.message) {
           errorMessage = errorData.message;
         } else if (errorData.errors) {
-          // Laravel validation errors
-          const errorMessages = Object.values(errorData.errors).flat();
-          errorMessage = errorMessages.join(', ');
+              // Laravel validation errors - format them nicely
+              const errorMessages = Object.entries(errorData.errors).map(([field, messages]) => {
+                const msgArray = Array.isArray(messages) ? messages : [messages];
+                return `${field}: ${msgArray.join(', ')}`;
+              });
+              errorMessage = errorMessages.join('; ');
         } else if (errorData.error) {
           errorMessage = errorData.error;
+            }
+          } else {
+            errorMessage = `HTTP error! status: ${response.status} ${response.statusText}`;
         }
       } catch (e) {
-        errorMessage = `HTTP error! status: ${response.status}`;
+          console.error('Failed to parse error response:', e);
+          errorMessage = `HTTP error! status: ${response.status} ${response.statusText}`;
       }
       throw new Error(errorMessage);
     }
 
     const data = await response.json();
+      console.log('Upload success:', data);
     return data.data || data;
+    } catch (error: any) {
+      // Re-throw if it's already our formatted error
+      if (error instanceof Error && error.message !== 'An error occurred') {
+        throw error;
+      }
+      // Otherwise wrap in a more descriptive error
+      throw new Error(`Upload failed: ${error.message || 'Unknown error'}`);
+    }
   },
 
   download: async (id: string) => {
@@ -486,8 +647,11 @@ export const galleryApi = {
 
 // Timetable API
 export const timetableApi = {
-  getAll: async (day?: string) => {
-    const endpoint = day ? `/timetable?day=${day}` : '/timetable';
+  getAll: async (day?: string, courseId?: number) => {
+    const params = new URLSearchParams();
+    if (day) params.append('day', day);
+    if (courseId) params.append('course_id', courseId.toString());
+    const endpoint = params.toString() ? `/timetable?${params}` : '/timetable';
     const response = await apiRequest<any>(endpoint);
     // Handle both array and object responses
     return Array.isArray(response) ? response : (response?.data || []);
@@ -504,6 +668,7 @@ export const timetableApi = {
     subject: string;
     instructor: string;
     location: string;
+    course_id: number;
   }) => {
     const response = await apiRequest<any>('/timetable', {
       method: 'POST',
@@ -575,8 +740,11 @@ export const messagesApi = {
 
 // Subjects API
 export const subjectsApi = {
-  getAll: async (instructorId?: string) => {
-    const endpoint = instructorId ? `/subjects?instructor_id=${instructorId}` : '/subjects';
+  getAll: async (instructorId?: string, courseId?: number) => {
+    const params = new URLSearchParams();
+    if (instructorId) params.append('instructor_id', instructorId);
+    if (courseId) params.append('course_id', courseId.toString());
+    const endpoint = params.toString() ? `/subjects?${params}` : '/subjects';
     const response = await apiRequest<any>(endpoint);
     // Handle both array and object responses
     return Array.isArray(response) ? response : (response?.data || []);
@@ -591,6 +759,7 @@ export const subjectsApi = {
     name: string;
     code?: string;
     description?: string;
+    course_id: number;
   }) => {
     const response = await apiRequest<any>('/subjects', {
       method: 'POST',
@@ -620,10 +789,11 @@ export const subjectsApi = {
 
 // Assessments API
 export const assessmentsApi = {
-  getAll: async (instructorId?: string, subjectId?: string) => {
+  getAll: async (instructorId?: string, subjectId?: string, courseId?: number) => {
     const params = new URLSearchParams();
     if (instructorId) params.append('instructor_id', instructorId);
     if (subjectId) params.append('subject_id', subjectId);
+    if (courseId) params.append('course_id', courseId.toString());
     const endpoint = `/assessments${params.toString() ? '?' + params.toString() : ''}`;
     const response = await apiRequest<any>(endpoint);
     // Handle both array and object responses
@@ -637,6 +807,7 @@ export const assessmentsApi = {
 
   create: async (assessmentData: {
     subject_id: number;
+    course_id: number;
     title: string;
     description?: string;
     type: 'quiz' | 'assignment' | 'exam' | 'practical' | 'project' | 'other';
@@ -676,11 +847,12 @@ export const assessmentsApi = {
 
 // Grades API
 export const gradesApi = {
-  getAll: async (assessmentId?: string, traineeId?: string, instructorId?: string) => {
+  getAll: async (assessmentId?: string, traineeId?: string, instructorId?: string, courseId?: number) => {
     const params = new URLSearchParams();
     if (assessmentId) params.append('assessment_id', assessmentId);
     if (traineeId) params.append('trainee_id', traineeId);
     if (instructorId) params.append('instructor_id', instructorId);
+    if (courseId) params.append('course_id', courseId.toString());
     const endpoint = `/grades${params.toString() ? '?' + params.toString() : ''}`;
     const response = await apiRequest<any>(endpoint);
     // Handle both array and object responses
@@ -718,6 +890,111 @@ export const gradesApi = {
 
   delete: async (id: string) => {
     await apiRequest(`/grades/${id}`, {
+      method: 'DELETE',
+    });
+  },
+};
+
+// Notifications API
+export const notificationsApi = {
+  getAll: async () => {
+    const response = await apiRequest<{ data: any[]; unread_count: number }>('/notifications');
+    return response;
+  },
+
+  getUnread: async () => {
+    const response = await apiRequest<any[]>('/notifications/unread');
+    return Array.isArray(response) ? response : (response?.data || []);
+  },
+
+  getCount: async () => {
+    const response = await apiRequest<{ unread_count: number }>('/notifications/count');
+    return response.unread_count || 0;
+  },
+
+  markAsRead: async (id: string) => {
+    const response = await apiRequest<any>(`/notifications/${id}/read`, {
+      method: 'POST',
+    });
+    return response;
+  },
+
+  markAllAsRead: async () => {
+    const response = await apiRequest<any>('/notifications/read-all', {
+      method: 'POST',
+    });
+    return response;
+  },
+
+  delete: async (id: string) => {
+    await apiRequest(`/notifications/${id}`, {
+      method: 'DELETE',
+    });
+  },
+};
+
+// Activity Log API (Admin only)
+export const activityLogApi = {
+  getDoctorActivities: async (filters?: {
+    type?: string;
+    doctor?: string;
+    course_id?: number;
+    page?: number;
+    per_page?: number;
+  }) => {
+    const params = new URLSearchParams();
+    if (filters?.type) params.append('type', filters.type);
+    if (filters?.doctor) params.append('doctor', filters.doctor);
+    if (filters?.course_id) params.append('course_id', filters.course_id.toString());
+    if (filters?.page) params.append('page', filters.page.toString());
+    if (filters?.per_page) params.append('per_page', filters.per_page.toString());
+    
+    const endpoint = `/admin/doctor-activities${params.toString() ? '?' + params.toString() : ''}`;
+    const response = await apiRequest<{
+      data: any[];
+      pagination: {
+        current_page: number;
+        per_page: number;
+        total: number;
+        last_page: number;
+      };
+    }>(endpoint);
+    return response;
+  },
+};
+
+// Comments API
+export const commentsApi = {
+  getAll: async (commentableType: 'patient' | 'medical_report' | 'attendance_record', commentableId: number) => {
+    const params = new URLSearchParams();
+    params.append('commentable_type', commentableType);
+    params.append('commentable_id', commentableId.toString());
+    const response = await apiRequest<any[]>(`/comments?${params.toString()}`);
+    return Array.isArray(response) ? response : (response?.data || []);
+  },
+
+  create: async (commentData: {
+    commentable_type: 'patient' | 'medical_report' | 'attendance_record';
+    commentable_id: number;
+    comment: string;
+  }) => {
+    const response = await apiRequest<any>('/comments', {
+      method: 'POST',
+      body: JSON.stringify(commentData),
+    });
+    return response;
+  },
+
+  update: async (id: string, comment: string) => {
+    const response = await apiRequest<any>(`/comments/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ comment }),
+    });
+    return response;
+  },
+
+  delete: async (id: string) => {
+    await apiRequest(`/comments/${id}`, {
       method: 'DELETE',
     });
   },

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -17,7 +17,28 @@ import { FileHeart, Plus, Eye, Calendar, FileText, Download, Clock } from "lucid
 const PatientManagement = () => {
   const { toast } = useToast();
   const { user } = useAuth();
-  const { patients, reports, attendance, addReport, addAttendance } = usePatients();
+  const { patients, reports, attendance, addReport, addAttendance, refreshData } = usePatients();
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    // Refresh data when component mounts
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        await refreshData();
+      } catch (error) {
+        console.error('Failed to load patient data:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load patient data. Please refresh the page.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadData();
+  }, [refreshData, toast]);
 
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [showAttendanceDialog, setShowAttendanceDialog] = useState(false);
@@ -43,7 +64,7 @@ const PatientManagement = () => {
     notes: "",
   });
 
-  const handleSubmitReport = () => {
+  const handleSubmitReport = async () => {
     if (!selectedPatient || !reportForm.diagnosis) {
       toast({
         title: "Missing Information",
@@ -53,43 +74,52 @@ const PatientManagement = () => {
       return;
     }
 
-    const newReport: Omit<MedicalReport, "id"> = {
-      patientId: selectedPatient.id,
-      date: new Date().toISOString().split('T')[0],
-      diagnosis: reportForm.diagnosis,
-      symptoms: reportForm.symptoms,
-      treatment: reportForm.treatment,
-      notes: reportForm.notes,
-      doctor: user?.name || "Medical Officer",
-      vitalSigns: {
-        bloodPressure: reportForm.bloodPressure,
-        temperature: reportForm.temperature,
-        heartRate: reportForm.heartRate,
-        weight: reportForm.weight,
-      },
-    };
+    try {
+      const newReport: Omit<MedicalReport, "id"> = {
+        patientId: selectedPatient.id,
+        date: new Date().toISOString().split('T')[0],
+        diagnosis: reportForm.diagnosis,
+        symptoms: reportForm.symptoms,
+        treatment: reportForm.treatment,
+        notes: reportForm.notes,
+        doctor: user?.name || "Medical Officer",
+        vitalSigns: {
+          bloodPressure: reportForm.bloodPressure,
+          temperature: reportForm.temperature,
+          heartRate: reportForm.heartRate,
+          weight: reportForm.weight,
+        },
+      };
 
-    addReport(newReport);
-    setShowReportDialog(false);
-    setSelectedPatient(null);
-    setReportForm({
-      diagnosis: "",
-      symptoms: "",
-      treatment: "",
-      notes: "",
-      bloodPressure: "",
-      temperature: "",
-      heartRate: "",
-      weight: "",
-    });
+      await addReport(newReport);
+      setShowReportDialog(false);
+      setSelectedPatient(null);
+      setReportForm({
+        diagnosis: "",
+        symptoms: "",
+        treatment: "",
+        notes: "",
+        bloodPressure: "",
+        temperature: "",
+        heartRate: "",
+        weight: "",
+      });
 
-    toast({
-      title: "Report Saved",
-      description: `Medical report for ${selectedPatient.fullName} has been recorded`,
-    });
+      toast({
+        title: "Report Saved",
+        description: `Medical report for ${selectedPatient.fullName} has been recorded`,
+      });
+    } catch (error: any) {
+      console.error('Error saving report:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save medical report. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleSubmitAttendance = () => {
+  const handleSubmitAttendance = async () => {
     if (!attendanceForm.patientId || !attendanceForm.date || !attendanceForm.status) {
       toast({
         title: "Missing Information",
@@ -99,30 +129,39 @@ const PatientManagement = () => {
       return;
     }
 
-    const newAttendance: Omit<AttendanceRecord, "id"> = {
-      patientId: attendanceForm.patientId,
-      date: attendanceForm.date,
-      status: attendanceForm.status,
-      checkInTime: attendanceForm.checkInTime || undefined,
-      checkOutTime: attendanceForm.checkOutTime || undefined,
-      notes: attendanceForm.notes || undefined,
-    };
+    try {
+      const newAttendance: Omit<AttendanceRecord, "id"> = {
+        patientId: attendanceForm.patientId,
+        date: attendanceForm.date,
+        status: attendanceForm.status,
+        checkInTime: attendanceForm.checkInTime || undefined,
+        checkOutTime: attendanceForm.checkOutTime || undefined,
+        notes: attendanceForm.notes || undefined,
+      };
 
-    addAttendance(newAttendance);
-    setShowAttendanceDialog(false);
-    setAttendanceForm({
-      patientId: "",
-      date: new Date().toISOString().split('T')[0],
-      status: "Present",
-      checkInTime: "",
-      checkOutTime: "",
-      notes: "",
-    });
+      await addAttendance(newAttendance);
+      setShowAttendanceDialog(false);
+      setAttendanceForm({
+        patientId: "",
+        date: new Date().toISOString().split('T')[0],
+        status: "Present",
+        checkInTime: "",
+        checkOutTime: "",
+        notes: "",
+      });
 
-    toast({
-      title: "Attendance Recorded",
-      description: "Attendance has been recorded successfully",
-    });
+      toast({
+        title: "Attendance Recorded",
+        description: "Attendance has been recorded successfully",
+      });
+    } catch (error: any) {
+      console.error('Error saving attendance:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to record attendance. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const getPatientReports = (patientId: string) => {
@@ -236,6 +275,17 @@ Generated By: ${user?.name || 'Medical Officer'}
     });
   };
 
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold text-primary">Patient Management</h1>
+          <p className="text-muted-foreground">Loading patient data...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -247,6 +297,7 @@ Generated By: ${user?.name || 'Medical Officer'}
           <Button 
             onClick={() => setShowAttendanceDialog(true)} 
             variant="outline"
+            disabled={patients.length === 0}
           >
             <Clock className="w-4 h-4 mr-2" />
             Record Attendance

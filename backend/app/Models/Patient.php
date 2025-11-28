@@ -18,6 +18,7 @@ class Patient extends Model
         'medical_history',
         'emergency_contact',
         'registered_date',
+        'course_id',
     ];
 
     protected function casts(): array

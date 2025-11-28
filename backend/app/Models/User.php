@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -28,6 +29,8 @@ class User extends Authenticatable
         'phone',
         'department',
         'avatar',
+        'course_id',
+        'user_id',
     ];
 
     /**
@@ -92,5 +95,17 @@ class User extends Authenticatable
     public function gradedAssessments(): HasMany
     {
         return $this->hasMany(Grade::class, 'graded_by');
+    }
+
+    public function enrolledCourses(): BelongsToMany
+    {
+        return $this->belongsToMany(Course::class, 'course_enrollments')
+                    ->withPivot('enrolled_at')
+                    ->withTimestamps();
+    }
+
+    public function course(): BelongsTo
+    {
+        return $this->belongsTo(Course::class, 'course_id');
     }
 }

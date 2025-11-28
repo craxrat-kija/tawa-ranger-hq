@@ -16,6 +16,7 @@ class Gallery extends Model
         'image_path',
         'date',
         'uploaded_by',
+        'course_id',
     ];
 
     protected function casts(): array

@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
+import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from "react";
 import { patientsApi, medicalReportsApi, attendanceApi } from "@/lib/api";
+import { useAuth } from "./AuthContext";
 
 export interface Patient {
   id: string;
@@ -55,19 +56,41 @@ interface PatientContextType {
 const PatientContext = createContext<PatientContextType | undefined>(undefined);
 
 export const PatientProvider = ({ children }: { children: ReactNode }) => {
+  const { isAuthenticated } = useAuth();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [reports, setReports] = useState<MedicalReport[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
 
-  const refreshData = async () => {
+  const refreshData = useCallback(async () => {
+    if (!isAuthenticated) {
+      return;
+    }
+    
     try {
+      console.log('Loading patient data...');
       const [patientsData, reportsData, attendanceData] = await Promise.all([
-        patientsApi.getAll(),
-        medicalReportsApi.getAll(),
-        attendanceApi.getAll(),
+        patientsApi.getAll().catch(err => {
+          console.error('Error loading patients:', err);
+          return [];
+        }),
+        medicalReportsApi.getAll().catch(err => {
+          console.error('Error loading reports:', err);
+          return [];
+        }),
+        attendanceApi.getAll().catch(err => {
+          console.error('Error loading attendance:', err);
+          return [];
+        }),
       ]);
 
-      setPatients(patientsData.map((p: any) => ({
+      console.log('Patient data loaded:', { patients: patientsData.length, reports: reportsData.length, attendance: attendanceData.length });
+
+      // Ensure we're working with arrays
+      const patientsArray = Array.isArray(patientsData) ? patientsData : [];
+      const reportsArray = Array.isArray(reportsData) ? reportsData : [];
+      const attendanceArray = Array.isArray(attendanceData) ? attendanceData : [];
+
+      setPatients(patientsArray.map((p: any) => ({
         id: p.id.toString(),
         fullName: p.full_name || p.fullName,
         email: p.email,
@@ -79,24 +102,26 @@ export const PatientProvider = ({ children }: { children: ReactNode }) => {
         registeredDate: p.registered_date || p.registeredDate || new Date().toISOString().split('T')[0],
       })));
 
-      setReports(reportsData.map((r: any) => ({
+      setReports(reportsArray.map((r: any) => ({
         id: r.id.toString(),
         patientId: r.patient_id?.toString() || r.patientId?.toString(),
-        date: r.date,
-        diagnosis: r.diagnosis,
-        symptoms: r.symptoms,
-        treatment: r.treatment,
-        notes: r.notes,
-        doctor: r.doctor,
+        date: r.date || new Date().toISOString().split('T')[0],
+        diagnosis: r.diagnosis || "",
+        symptoms: r.symptoms || "",
+        treatment: r.treatment || "",
+        notes: r.notes || "",
+        doctor: r.doctor || "",
         vitalSigns: {
-          bloodPressure: r.vital_signs?.blood_pressure || r.vitalSigns?.bloodPressure || "",
-          temperature: r.vital_signs?.temperature || r.vitalSigns?.temperature || "",
-          heartRate: r.vital_signs?.heart_rate || r.vitalSigns?.heartRate || "",
-          weight: r.vital_signs?.weight || r.vitalSigns?.weight || "",
+          // Backend stores as separate fields (blood_pressure, temperature, etc.)
+          // but may also come as nested vital_signs object
+          bloodPressure: r.blood_pressure || r.vital_signs?.blood_pressure || r.vital_signs?.bloodPressure || r.vitalSigns?.bloodPressure || "",
+          temperature: r.temperature || r.vital_signs?.temperature || r.vital_signs?.temperature || r.vitalSigns?.temperature || "",
+          heartRate: r.heart_rate || r.vital_signs?.heart_rate || r.vital_signs?.heartRate || r.vitalSigns?.heartRate || "",
+          weight: r.weight || r.vital_signs?.weight || r.vital_signs?.weight || r.vitalSigns?.weight || "",
         },
       })));
 
-      setAttendance(attendanceData.map((a: any) => ({
+      setAttendance(attendanceArray.map((a: any) => ({
         id: a.id.toString(),
         patientId: a.patient_id?.toString() || a.patientId?.toString(),
         date: a.date,
@@ -107,12 +132,18 @@ export const PatientProvider = ({ children }: { children: ReactNode }) => {
       })));
     } catch (error) {
       console.error('Error loading patient data:', error);
+      // Set empty arrays on error to prevent UI from breaking
+      setPatients([]);
+      setReports([]);
+      setAttendance([]);
     }
-  };
+  }, [isAuthenticated]);
 
   useEffect(() => {
-    refreshData();
-  }, []);
+    if (isAuthenticated) {
+      refreshData();
+    }
+  }, [isAuthenticated, refreshData]);
 
   const addPatient = async (patientData: Omit<Patient, "id" | "registeredDate">): Promise<Patient> => {
     const newPatient = await patientsApi.create({
@@ -139,29 +170,39 @@ export const PatientProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const addReport = async (reportData: Omit<MedicalReport, "id">) => {
-    await medicalReportsApi.create({
-      patient_id: parseInt(reportData.patientId),
-      date: reportData.date,
-      diagnosis: reportData.diagnosis,
-      symptoms: reportData.symptoms,
-      treatment: reportData.treatment,
-      notes: reportData.notes,
-      doctor: reportData.doctor,
-      vital_signs: reportData.vitalSigns,
-    });
-    await refreshData();
+    try {
+      await medicalReportsApi.create({
+        patient_id: parseInt(reportData.patientId),
+        date: reportData.date,
+        diagnosis: reportData.diagnosis,
+        symptoms: reportData.symptoms || "",
+        treatment: reportData.treatment || "",
+        notes: reportData.notes || "",
+        doctor: reportData.doctor,
+        vital_signs: reportData.vitalSigns || {},
+      });
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding report:', error);
+      throw error;
+    }
   };
 
   const addAttendance = async (attendanceData: Omit<AttendanceRecord, "id">) => {
-    await attendanceApi.create({
-      patient_id: parseInt(attendanceData.patientId),
-      date: attendanceData.date,
-      status: attendanceData.status,
-      check_in_time: attendanceData.checkInTime,
-      check_out_time: attendanceData.checkOutTime,
-      notes: attendanceData.notes,
-    });
-    await refreshData();
+    try {
+      await attendanceApi.create({
+        patient_id: parseInt(attendanceData.patientId),
+        date: attendanceData.date,
+        status: attendanceData.status,
+        check_in_time: attendanceData.checkInTime || null,
+        check_out_time: attendanceData.checkOutTime || null,
+        notes: attendanceData.notes || null,
+      });
+      await refreshData();
+    } catch (error) {
+      console.error('Error adding attendance:', error);
+      throw error;
+    }
   };
 
   const updatePatient = async (id: string, patientData: Partial<Patient>) => {

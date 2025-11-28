@@ -4,13 +4,24 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Timetable;
+use App\Helpers\CourseHelper;
 use Illuminate\Http\Request;
 
 class TimetableController extends Controller
 {
     public function index(Request $request)
     {
+        $currentUser = $request->user();
+        $courseId = CourseHelper::getCurrentCourseId($currentUser);
+        
         $timetable = Timetable::query();
+
+        // Always filter by current user's course_id for isolation
+        if ($courseId) {
+            $timetable->where('course_id', $courseId);
+        } elseif ($request->has('course_id')) {
+            $timetable->where('course_id', $request->course_id);
+        }
 
         if ($request->has('date')) {
             $timetable->whereDate('date', $request->date);
@@ -28,6 +39,16 @@ class TimetableController extends Controller
 
     public function store(Request $request)
     {
+        $currentUser = $request->user();
+        $courseId = CourseHelper::getCurrentCourseId($currentUser);
+        
+        if (!$courseId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You must be assigned to a course to create timetable entries.',
+            ], 403);
+        }
+        
         $validated = $request->validate([
             'date' => 'required|date',
             'time' => 'required|string',
@@ -36,6 +57,7 @@ class TimetableController extends Controller
             'location' => 'required|string|max:255',
         ]);
 
+        $validated['course_id'] = $courseId;
         $timetable = Timetable::create($validated);
 
         return response()->json([
@@ -45,8 +67,19 @@ class TimetableController extends Controller
         ], 201);
     }
 
-    public function show(Timetable $timetable)
+    public function show(Request $request, Timetable $timetable)
     {
+        // Check if timetable belongs to the same course
+        $currentUser = $request->user();
+        $courseId = CourseHelper::getCurrentCourseId($currentUser);
+        
+        if ($courseId && $timetable->course_id !== $courseId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Access denied. Timetable entry does not belong to your course.',
+            ], 403);
+        }
+        
         return response()->json([
             'success' => true,
             'data' => $timetable,
@@ -55,6 +88,17 @@ class TimetableController extends Controller
 
     public function update(Request $request, Timetable $timetable)
     {
+        // Check if timetable belongs to the same course
+        $currentUser = $request->user();
+        $courseId = CourseHelper::getCurrentCourseId($currentUser);
+        
+        if ($courseId && $timetable->course_id !== $courseId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Access denied. Timetable entry does not belong to your course.',
+            ], 403);
+        }
+        
         $validated = $request->validate([
             'date' => 'sometimes|date',
             'time' => 'sometimes|string',
@@ -72,8 +116,19 @@ class TimetableController extends Controller
         ]);
     }
 
-    public function destroy(Timetable $timetable)
+    public function destroy(Request $request, Timetable $timetable)
     {
+        // Check if timetable belongs to the same course
+        $currentUser = $request->user();
+        $courseId = CourseHelper::getCurrentCourseId($currentUser);
+        
+        if ($courseId && $timetable->course_id !== $courseId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Access denied. Timetable entry does not belong to your course.',
+            ], 403);
+        }
+        
         $timetable->delete();
 
         return response()->json([

@@ -21,6 +21,7 @@ class MedicalReport extends Model
         'temperature',
         'heart_rate',
         'weight',
+        'course_id',
     ];
 
     protected function casts(): array

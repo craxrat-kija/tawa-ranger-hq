@@ -10,6 +10,7 @@ class Message extends Model
     protected $fillable = [
         'user_id',
         'message',
+        'course_id',
     ];
 
     public function user(): BelongsTo
