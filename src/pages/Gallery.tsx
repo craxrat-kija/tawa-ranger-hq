@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Upload, Trash2, X } from "lucide-react";
+import { Upload, Trash2, X, Search } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { galleryApi } from "@/lib/api";
@@ -28,15 +28,17 @@ const Gallery = () => {
   const [preview, setPreview] = useState<string | null>(null);
   const [uploadData, setUploadData] = useState({ title: "", file: null as File | null });
   const [images, setImages] = useState<ImageItem[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     loadGallery();
-  }, []);
+  }, [searchQuery]);
 
   const loadGallery = async () => {
     try {
       setIsLoading(true);
-      const data = await galleryApi.getAll();
+      const params = searchQuery ? { search: searchQuery } : {};
+      const data = await galleryApi.getAll(params);
       const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
       console.log('Gallery data:', data);
       setImages(data.map((item: any) => {
@@ -209,7 +211,7 @@ const Gallery = () => {
           <h1 className="text-3xl font-bold text-primary">Photo Gallery</h1>
           <p className="text-muted-foreground">Training moments and achievements</p>
         </div>
-        {user?.role === "admin" && (
+        {(user?.role === "admin" || user?.role === "super_admin") && (
           <Button 
             onClick={() => setShowUploadDialog(true)} 
             className="bg-gradient-military"
@@ -218,6 +220,17 @@ const Gallery = () => {
             Upload Photos
           </Button>
         )}
+      </div>
+
+      {/* Search Bar */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-5 h-5" />
+        <Input
+          placeholder="Search gallery by title..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-10"
+        />
       </div>
 
       {/* Upload Dialog */}
@@ -375,7 +388,7 @@ const Gallery = () => {
                 </div>
               </div>
             </div>
-            {user?.role === "admin" && (
+            {(user?.role === "admin" || user?.role === "super_admin") && (
               <Button
                 variant="destructive"
                 size="icon"

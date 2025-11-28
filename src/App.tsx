@@ -12,6 +12,7 @@ import { Loading } from "@/components/Loading";
 import { SetupChecker } from "@/components/SetupChecker";
 import LandingPage from "./pages/LandingPage";
 import Login from "./pages/Login";
+import SuperAdminLogin from "./pages/SuperAdminLogin";
 import Setup from "./pages/Setup";
 import CreateCourse from "./pages/CreateCourse";
 import AdminDashboard from "./pages/AdminDashboard";
@@ -40,12 +41,6 @@ const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode;
 };
 
 const AppContent = () => {
-  const { isLoading } = useAuth();
-  
-  if (isLoading) {
-    return <Loading />;
-  }
-  
   return (
     <BrowserRouter
       future={{
@@ -57,12 +52,21 @@ const AppContent = () => {
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/super-admin/login" element={<SuperAdminLogin />} />
           <Route path="/setup" element={<Setup />} />
           <Route 
             path="/create-course" 
             element={
-              <ProtectedRoute allowedRoles={["admin"]}>
+              <ProtectedRoute allowedRoles={["super_admin"]}>
                 <CreateCourse />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/super-admin/*" 
+            element={
+              <ProtectedRoute allowedRoles={["super_admin"]}>
+                <AdminDashboard />
               </ProtectedRoute>
             } 
           />
@@ -97,22 +101,36 @@ const AppContent = () => {
   );
 };
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <ThemeProvider>
-      <AuthProvider>
-        <NotificationProvider>
-          <PatientProvider>
-            <TooltipProvider>
-              <Toaster />
-              <Sonner />
-              <AppContent />
-            </TooltipProvider>
-          </PatientProvider>
-        </NotificationProvider>
-      </AuthProvider>
-    </ThemeProvider>
-  </QueryClientProvider>
-);
+const AuthWrapper = ({ children }: { children: React.ReactNode }) => {
+  const { isLoading } = useAuth();
+  
+  if (isLoading) {
+    return <Loading />;
+  }
+  
+  return <>{children}</>;
+};
+
+const App = () => {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <AuthProvider>
+          <AuthWrapper>
+            <NotificationProvider>
+              <PatientProvider>
+                <TooltipProvider>
+                  <Toaster />
+                  <Sonner />
+                  <AppContent />
+                </TooltipProvider>
+              </PatientProvider>
+            </NotificationProvider>
+          </AuthWrapper>
+        </AuthProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;

@@ -159,7 +159,7 @@ const Timetable = () => {
           <h1 className="text-3xl font-bold text-primary">Training Timetable</h1>
           <p className="text-muted-foreground">Training schedule calendar</p>
         </div>
-        {user?.role === "admin" && (
+        {(user?.role === "admin" || user?.role === "super_admin") && (
           <Button 
             onClick={() => {
               setEditingItem(null);
@@ -334,7 +334,7 @@ const Timetable = () => {
                     <p className="text-xs text-muted-foreground">{item.instructor}</p>
                     <p className="text-xs text-muted-foreground">{item.location}</p>
                     
-                    {user?.role === "admin" && (
+                    {(user?.role === "admin" || user?.role === "super_admin") && (
                       <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Button
                           variant="ghost"
@@ -398,7 +398,7 @@ const Timetable = () => {
                         <p className="text-sm text-muted-foreground">{item.instructor}</p>
                         <p className="text-sm text-muted-foreground">{item.location}</p>
                       </div>
-                      {user?.role === "admin" && (
+                      {(user?.role === "admin" || user?.role === "super_admin") && (
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <Button
                             variant="ghost"

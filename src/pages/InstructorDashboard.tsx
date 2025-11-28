@@ -38,7 +38,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { timetableApi } from "@/lib/api";
 import { format } from "date-fns";
-import tawaBackground from "@/assets/tawa-background.jpg";
 
 const InstructorDashboard = () => {
   const { logout, user } = useAuth();
@@ -70,11 +69,11 @@ const InstructorDashboard = () => {
       <aside
         className={`fixed lg:static inset-y-0 left-0 z-50 transition-transform duration-300 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-        } w-64 bg-slate-900`}
+        } w-64 bg-[hsl(120,30%,18%)]`}
       >
         <div className="relative h-full flex flex-col">
           {/* Logo Section */}
-          <div className="p-6 border-b border-border">
+          <div className="p-6 border-b border-[hsl(45,30%,35%)]/40 bg-gradient-to-r from-[hsl(120,45%,30%)]/30 via-[hsl(45,40%,35%)]/20 to-transparent">
             <div className="flex items-center gap-3">
               <RotatingLogo className="w-12 h-12" />
               <div>
@@ -90,7 +89,7 @@ const InstructorDashboard = () => {
               <Link
                 key={idx}
                 to={item.path}
-                className="flex items-center gap-3 px-4 py-3 text-white hover:bg-white/20 rounded-lg transition-colors group"
+                className="flex items-center gap-3 px-4 py-3 text-white hover:bg-[hsl(120,35%,28%)] hover:shadow-md rounded-lg transition-all group border border-transparent hover:border-[hsl(120,40%,35%)]/30"
               >
                 <item.icon className="w-6 h-6 group-hover:scale-110 transition-transform" />
                 <span className="font-medium text-base">{item.label}</span>
@@ -99,7 +98,7 @@ const InstructorDashboard = () => {
           </nav>
 
           {/* User Section */}
-          <div className="p-4 border-t border-border">
+          <div className="p-4 border-t border-[hsl(45,30%,35%)]/40 bg-gradient-to-r from-transparent via-[hsl(45,40%,35%)]/20 to-[hsl(120,45%,30%)]/30">
             <div className="mb-3 text-white">
               <p className="font-semibold text-base">{user?.name}</p>
               <p className="text-sm text-white/80">{user?.user_id || "Instructor"}</p>
@@ -140,9 +139,8 @@ const InstructorDashboard = () => {
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto">
         {/* Header */}
-        <header className="bg-cover bg-center border-b border-border p-6 sticky top-0 z-10" style={{ backgroundImage: `url(${tawaBackground})` }}>
-          <div className="absolute inset-0 bg-gradient-military/70" />
-          <div className="relative flex items-center justify-between">
+        <header className="bg-gradient-to-r from-[hsl(120,40%,25%)] via-[hsl(45,35%,30%)] to-[hsl(30,40%,22%)] text-white border-b border-[hsl(120,30%,20%)]/50 p-6 sticky top-0 z-10 shadow-lg">
+          <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-white">TAWA Instructor Dashboard</h1>
               <div className="flex items-center gap-4 mt-2">

@@ -20,7 +20,7 @@ class AttendanceRecordController extends Controller
         $records = AttendanceRecord::with('patient');
         
         // Admins can view all records, others are filtered by course
-        if ($currentUser->role !== 'admin' && $courseId) {
+        if ($currentUser->role !== 'admin' && $currentUser->role !== 'super_admin' && $courseId) {
             $records->where('course_id', $courseId);
         }
 

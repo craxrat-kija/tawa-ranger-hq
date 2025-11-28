@@ -14,10 +14,10 @@ export const ThemeToggle = () => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="icon" className="border-accent/30 hover:bg-accent/10">
-          {theme === "light" && <Sun className="h-5 w-5" />}
-          {theme === "dark" && <Moon className="h-5 w-5" />}
-          {theme === "tawa" && <Shield className="h-5 w-5 text-accent" />}
+        <Button variant="outline" size="icon" className="border-green-500/50 hover:bg-green-500/10 text-green-500">
+          {theme === "light" && <Sun className="h-5 w-5 text-green-500" />}
+          {theme === "dark" && <Moon className="h-5 w-5 text-green-500" />}
+          {theme === "tawa" && <Shield className="h-5 w-5 text-green-500" />}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">

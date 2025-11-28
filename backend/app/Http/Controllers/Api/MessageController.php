@@ -125,7 +125,7 @@ class MessageController extends Controller
         }
         
         // Only allow users to delete their own messages or admins
-        if ($message->user_id !== $request->user()->id && $request->user()->role !== 'admin') {
+        if ($message->user_id !== $request->user()->id && $request->user()->role !== 'admin' && $request->user()->role !== 'super_admin') {
             return response()->json([
                 'success' => false,
                 'message' => 'Unauthorized',

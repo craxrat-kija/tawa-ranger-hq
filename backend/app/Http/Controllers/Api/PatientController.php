@@ -19,7 +19,7 @@ class PatientController extends Controller
         $patients = Patient::query();
 
         // Admins can view all patients, others are filtered by course
-        if ($currentUser->role !== 'admin' && $courseId) {
+        if ($currentUser->role !== 'admin' && $currentUser->role !== 'super_admin' && $courseId) {
             $patients->where('course_id', $courseId);
         }
 

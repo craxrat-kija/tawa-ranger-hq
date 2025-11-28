@@ -17,9 +17,19 @@ class GalleryController extends Controller
         
         $gallery = Gallery::with('uploader');
         
-        // Always filter by current user's course_id for isolation
-        if ($courseId) {
+        // Admins can view all galleries across all courses
+        // Only filter by course for non-admin roles
+        if ($currentUser && $currentUser->role === 'admin') {
+            // Regular admins can see all galleries
+            // No course filter applied
+        } elseif ($courseId) {
             $gallery->where('course_id', $courseId);
+        }
+        
+        // Search functionality
+        if ($request->has('search')) {
+            $search = $request->search;
+            $gallery->where('title', 'like', "%{$search}%");
         }
         
         $gallery = $gallery->orderBy('date', 'desc')->get();

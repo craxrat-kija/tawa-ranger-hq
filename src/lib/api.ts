@@ -16,7 +16,7 @@ export const removeAuthToken = (): void => {
 };
 
 // API request helper
-const apiRequest = async <T>(
+export const apiRequest = async <T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> => {
@@ -69,6 +69,38 @@ export const authApi = {
   login: async (userId: string, password: string) => {
     try {
       const response = await fetch(`${API_BASE_URL}/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({ user_id: userId, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const error = new Error(data.message || data.errors?.user_id?.[0] || data.errors?.email?.[0] || `HTTP error! status: ${response.status}`);
+        (error as any).response = { data };
+        throw error;
+      }
+
+      // Handle both wrapped and unwrapped responses
+      if (data.data) {
+        return data.data;
+      }
+      return data;
+    } catch (error: any) {
+      if (error.response) {
+        throw error;
+      }
+      throw new Error(error.message || 'Failed to login');
+    }
+  },
+
+  superAdminLogin: async (userId: string, password: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/super-admin/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -220,6 +252,57 @@ export const usersApi = {
     await apiRequest(`/users/${id}`, {
       method: 'DELETE',
     });
+  },
+
+  downloadTemplate: async () => {
+    const token = getToken();
+    const response = await fetch(`${API_BASE_URL}/users/template/download`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to download template');
+    }
+    
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'user_import_template.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  },
+
+  importFromExcel: async (file: File, courseId?: number) => {
+    const token = getToken();
+    const formData = new FormData();
+    formData.append('users_file', file);
+    if (courseId) {
+      formData.append('course_id', courseId.toString());
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/users/import/excel`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: formData,
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      const error = new Error(data.message || `HTTP error! status: ${response.status}`);
+      (error as any).response = { data };
+      throw error;
+    }
+    
+    return data;
   },
 };
 
@@ -584,8 +667,9 @@ export const materialsApi = {
 
 // Gallery API
 export const galleryApi = {
-  getAll: async () => {
-    const response = await apiRequest<any>('/gallery');
+  getAll: async (params?: { search?: string }) => {
+    const queryString = params && params.search ? `?search=${encodeURIComponent(params.search)}` : '';
+    const response = await apiRequest<any>(`/gallery${queryString}`);
     // Handle both array and object responses
     return Array.isArray(response) ? response : (response?.data || []);
   },
@@ -740,10 +824,11 @@ export const messagesApi = {
 
 // Subjects API
 export const subjectsApi = {
-  getAll: async (instructorId?: string, courseId?: number) => {
+  getAll: async (instructorId?: string, courseId?: number, searchParams?: { search?: string }) => {
     const params = new URLSearchParams();
     if (instructorId) params.append('instructor_id', instructorId);
     if (courseId) params.append('course_id', courseId.toString());
+    if (searchParams?.search) params.append('search', searchParams.search);
     const endpoint = params.toString() ? `/subjects?${params}` : '/subjects';
     const response = await apiRequest<any>(endpoint);
     // Handle both array and object responses
@@ -997,6 +1082,93 @@ export const commentsApi = {
     await apiRequest(`/comments/${id}`, {
       method: 'DELETE',
     });
+  },
+};
+
+// Admin Permissions API
+export const adminPermissionsApi = {
+  getAll: async () => {
+    const response = await apiRequest<any>('/admin/permissions');
+    // The apiRequest helper already unwraps data.data || data
+    // So response should be the data array directly, or wrapped in { success: true, data: [...] }
+    if (Array.isArray(response)) {
+      return response;
+    }
+    if (response && response.data && Array.isArray(response.data)) {
+      return response.data;
+    }
+    if (response && response.success && Array.isArray(response.data)) {
+      return response.data;
+    }
+    console.warn('Unexpected response format:', response);
+    return [];
+  },
+
+  update: async (adminId: number, permissions: {
+    can_manage_users?: boolean;
+    can_manage_subjects?: boolean;
+    can_manage_materials?: boolean;
+    can_manage_gallery?: boolean;
+    can_manage_timetable?: boolean;
+    can_manage_reports?: boolean;
+    can_manage_chat?: boolean;
+    can_manage_assessments?: boolean;
+    can_manage_results?: boolean;
+    can_manage_activities?: boolean;
+    can_view_doctor_dashboard?: boolean;
+  }) => {
+    const response = await apiRequest<{
+      success: boolean;
+      message: string;
+      data: any;
+    }>(`/admin/permissions/${adminId}`, {
+      method: 'PUT',
+      body: JSON.stringify(permissions),
+    });
+    return response;
+  },
+
+  getMyPermissions: async () => {
+    // apiRequest already unwraps data.data || data, so response should be the permissions object directly
+    const response = await apiRequest<{
+      can_manage_users: boolean;
+      can_manage_subjects: boolean;
+      can_manage_materials: boolean;
+      can_manage_gallery: boolean;
+      can_manage_timetable: boolean;
+      can_manage_reports: boolean;
+      can_manage_chat: boolean;
+      can_manage_assessments: boolean;
+      can_manage_results: boolean;
+      can_manage_activities: boolean;
+      can_view_doctor_dashboard: boolean;
+    }>('/admin/permissions/my');
+    
+    // If response is already the permissions object (which it should be after apiRequest unwrapping)
+    if (response && typeof response === 'object' && 'can_manage_users' in response) {
+      return response;
+    }
+    
+    // If response is wrapped in data property (shouldn't happen, but handle it)
+    if (response && (response as any).data && typeof (response as any).data === 'object') {
+      return (response as any).data;
+    }
+    
+    console.warn('Unexpected permissions response format:', response);
+    // Return default (all false) if we can't parse
+    return {
+      can_manage_users: false,
+      can_manage_subjects: false,
+      can_manage_materials: false,
+      can_manage_gallery: false,
+      can_manage_timetable: false,
+      can_manage_reports: false,
+      can_manage_chat: false,
+      can_manage_assessments: false,
+      can_manage_results: false,
+      can_manage_activities: false,
+      can_view_doctor_dashboard: false,
+    };
   },
 };
 

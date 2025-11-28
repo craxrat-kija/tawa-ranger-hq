@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { subjectsApi } from "@/lib/api";
-import { Plus, Edit, Trash2, BookOpen } from "lucide-react";
+import { Plus, Edit, Trash2, BookOpen, Search } from "lucide-react";
 
 interface Subject {
   id: number;
@@ -28,15 +28,17 @@ const Subjects = () => {
     code: "",
     description: "",
   });
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     loadSubjects();
-  }, []);
+  }, [searchQuery]);
 
   const loadSubjects = async () => {
     try {
       setIsLoading(true);
-      const data = await subjectsApi.getAll();
+      const searchParams = searchQuery ? { search: searchQuery } : undefined;
+      const data = await subjectsApi.getAll(undefined, undefined, searchParams);
       // subjectsApi.getAll already handles array/object conversion
       setSubjects(data);
     } catch (error: any) {
@@ -189,6 +191,17 @@ const Subjects = () => {
             </form>
           </DialogContent>
         </Dialog>
+      </div>
+
+      {/* Search Bar */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-5 h-5" />
+        <Input
+          placeholder="Search subjects by name, code, or description..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-10"
+        />
       </div>
 
       <Card>

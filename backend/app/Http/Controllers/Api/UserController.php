@@ -8,7 +8,13 @@ use App\Models\Course;
 use App\Helpers\CourseHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
 
 class UserController extends Controller
 {
@@ -62,13 +68,30 @@ class UserController extends Controller
             
             $users = User::query();
 
-            // Filter by course_id - only show users from the same course
-            if ($courseId) {
+            // Super admins can see all users, regular admins see only their course
+            if ($currentUser && $currentUser->role === 'super_admin') {
+                // Super admin sees all users - no course filter
+            } elseif ($courseId) {
                 $users->where('course_id', $courseId);
             }
 
             if ($request->has('role')) {
                 $users->where('role', $request->role);
+            }
+            
+            if ($request->has('course_id')) {
+                $users->where('course_id', $request->course_id);
+            }
+            
+            if ($request->has('search')) {
+                $search = $request->search;
+                $users->where(function($query) use ($search) {
+                    $query->where('name', 'like', "%{$search}%")
+                          ->orWhere('email', 'like', "%{$search}%")
+                          ->orWhere('user_id', 'like', "%{$search}%")
+                          ->orWhere('phone', 'like', "%{$search}%")
+                          ->orWhere('department', 'like', "%{$search}%");
+                });
             }
 
             $usersList = $users->with(['subjects', 'course'])->get()->map(function ($user) {
@@ -139,12 +162,26 @@ class UserController extends Controller
             ]);
 
             $currentUser = $request->user();
-            $courseId = CourseHelper::getCurrentCourseId($currentUser);
+            
+            // Super admins can specify course_id, regular admins use their assigned course
+            $courseId = null;
+            if ($currentUser->role === 'super_admin' && $request->has('course_id')) {
+                $courseId = $request->course_id;
+                // Validate that the course exists
+                if (!Course::find($courseId)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Invalid course ID provided.',
+                    ], 422);
+                }
+            } else {
+                $courseId = CourseHelper::getCurrentCourseId($currentUser);
+            }
             
             if (!$courseId) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'You must be assigned to a course to register users.',
+                    'message' => 'You must be assigned to a course or specify a course ID to register users.',
                 ], 422);
             }
             
@@ -325,5 +362,189 @@ class UserController extends Controller
             'success' => true,
             'message' => 'User deleted successfully',
         ]);
+    }
+
+    public function downloadTemplate()
+    {
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        
+        // Set headers
+        $headers = [
+            'Name',
+            'Email',
+            'Phone',
+            'Department',
+            'Role',
+            'User ID (Optional - will be auto-generated if empty)',
+        ];
+        
+        $sheet->fromArray($headers, null, 'A1');
+        
+        // Style header row
+        $headerStyle = [
+            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+            'fill' => [
+                'fillType' => Fill::FILL_SOLID,
+                'startColor' => ['rgb' => '4472C4']
+            ],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+        ];
+        $sheet->getStyle('A1:F1')->applyFromArray($headerStyle);
+        
+        // Set column widths
+        $sheet->getColumnDimension('A')->setWidth(25);
+        $sheet->getColumnDimension('B')->setWidth(30);
+        $sheet->getColumnDimension('C')->setWidth(20);
+        $sheet->getColumnDimension('D')->setWidth(25);
+        $sheet->getColumnDimension('E')->setWidth(15);
+        $sheet->getColumnDimension('F')->setWidth(30);
+        
+        // Add example row
+        $exampleRow = [
+            'John Doe',
+            'john.doe@example.com',
+            '+255 712 345 678',
+            'Field Operations',
+            'trainee',
+            '',
+        ];
+        $sheet->fromArray($exampleRow, null, 'A2');
+        
+        // Add note
+        $sheet->setCellValue('A4', 'Note: Role must be one of: trainee, instructor, doctor, admin');
+        $sheet->mergeCells('A4:F4');
+        $sheet->getStyle('A4')->getFont()->setItalic(true);
+        $sheet->getStyle('A4')->getFont()->getColor()->setRGB('666666');
+        
+        $writer = new Xlsx($spreadsheet);
+        
+        $filename = 'user_import_template.xlsx';
+        $tempFile = tempnam(sys_get_temp_dir(), $filename);
+        $writer->save($tempFile);
+        
+        return response()->download($tempFile, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend(true);
+    }
+
+    public function importFromExcel(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'users_file' => 'required|file|mimes:xlsx,xls|max:10240', // 10MB max
+                'course_id' => 'nullable|exists:courses,id',
+            ]);
+
+            $currentUser = $request->user();
+            $courseId = $validated['course_id'] ?? CourseHelper::getCurrentCourseId($currentUser);
+            
+            // Super admin can specify course_id, regular admin uses their course
+            if (!$courseId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Course ID is required. You must be assigned to a course or specify a course ID.',
+                ], 422);
+            }
+
+            $file = $request->file('users_file');
+            $spreadsheet = IOFactory::load($file->getRealPath());
+            $worksheet = $spreadsheet->getActiveSheet();
+            $rows = $worksheet->toArray();
+            
+            $importedUsers = 0;
+            $errors = [];
+            
+            // Skip header row (row 1) and example row (row 2)
+            for ($i = 2; $i < count($rows); $i++) {
+                $row = $rows[$i];
+                
+                // Skip empty rows
+                if (empty($row[0]) || empty($row[1])) {
+                    continue;
+                }
+                
+                $name = trim($row[0] ?? '');
+                $email = trim($row[1] ?? '');
+                $phone = trim($row[2] ?? '');
+                $department = trim($row[3] ?? '');
+                $role = strtolower(trim($row[4] ?? 'trainee'));
+                $userId = trim($row[5] ?? '');
+                
+                // Validate role
+                if (!in_array($role, ['trainee', 'instructor', 'doctor', 'admin'])) {
+                    $errors[] = "Row " . ($i + 1) . ": Invalid role '{$role}'. Must be trainee, instructor, doctor, or admin.";
+                    continue;
+                }
+                
+                // Validate email
+                if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    $errors[] = "Row " . ($i + 1) . ": Invalid email '{$email}'.";
+                    continue;
+                }
+                
+                // Check if email already exists
+                if (User::where('email', $email)->exists()) {
+                    $errors[] = "Row " . ($i + 1) . ": Email '{$email}' already exists.";
+                    continue;
+                }
+                
+                // Generate user_id if not provided
+                if (empty($userId)) {
+                    $userId = $this->generateUserId($courseId, $role);
+                } else {
+                    // Check if provided user_id already exists
+                    if (User::where('user_id', $userId)->exists()) {
+                        $errors[] = "Row " . ($i + 1) . ": User ID '{$userId}' already exists.";
+                        continue;
+                    }
+                }
+                
+                // Create user
+                $userData = [
+                    'name' => $name,
+                    'email' => $email,
+                    'user_id' => $userId,
+                    'role' => $role,
+                    'phone' => $phone ?: null,
+                    'department' => $department ?: null,
+                    'course_id' => $courseId,
+                ];
+                
+                // Set password based on role
+                if ($role === 'trainee') {
+                    $userData['password'] = Hash::make(uniqid('trainee_', true));
+                } else {
+                    // For other roles, set a temporary password that needs to be changed
+                    $userData['password'] = Hash::make('temp_password_' . uniqid());
+                }
+                
+                User::create($userData);
+                $importedUsers++;
+            }
+
+            $message = "Successfully imported {$importedUsers} user(s).";
+            if (!empty($errors)) {
+                $message .= " Errors: " . implode(' ', array_slice($errors, 0, 10)); // Limit to first 10 errors
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'data' => [
+                    'imported' => $importedUsers,
+                    'errors' => $errors,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error importing users from Excel: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to import users: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 }

@@ -243,7 +243,7 @@ const Materials = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-primary">Training Materials</h1>
-        {(user?.role === "admin" || user?.role === "instructor") && (
+        {((user?.role === "admin" || user?.role === "super_admin" || user?.role === "instructor")) && (
           <Button 
             onClick={() => setShowUploadDialog(true)} 
             className="bg-gradient-military"
@@ -409,7 +409,7 @@ const Materials = () => {
                   <Download className="w-4 h-4 mr-2" />
                   Download
                 </Button>
-                {(user?.role === "admin" || user?.role === "instructor") && (
+                {((user?.role === "admin" || user?.role === "super_admin" || user?.role === "instructor")) && (
                   <Button 
                     onClick={() => handleDelete(material.id)} 
                     variant="destructive"

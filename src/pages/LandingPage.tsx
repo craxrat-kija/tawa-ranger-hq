@@ -4,8 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RotatingLogo } from "@/components/RotatingLogo";
-import { LogIn, BookOpen, Settings, ArrowRight } from "lucide-react";
-import tawaBackground from "@/assets/tawa-background.jpg";
+import { LogIn, BookOpen, Settings, ArrowRight, Shield } from "lucide-react";
 
 const LandingPage = () => {
   const navigate = useNavigate();
@@ -42,14 +41,7 @@ const LandingPage = () => {
   }
 
   return (
-    <div className="min-h-screen relative flex items-center justify-center overflow-hidden">
-      {/* Background Image with Overlay */}
-      <div 
-        className="absolute inset-0 bg-cover bg-center"
-        style={{ backgroundImage: `url(${tawaBackground})` }}
-      >
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/95 via-primary/90 to-secondary/80" />
-      </div>
+    <div className="min-h-screen relative flex items-center justify-center overflow-hidden bg-background">
 
       {/* Animated Patterns */}
       <div className="absolute inset-0 opacity-10">
@@ -69,35 +61,6 @@ const LandingPage = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-          {/* Create New Course/Admin Card - Primary action, always visible */}
-          <Card className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-2 hover:border-primary/50 transition-all hover:shadow-2xl">
-            <CardHeader>
-              <div className="flex items-center justify-center mb-4">
-                <div className="p-3 bg-green-500/10 rounded-full">
-                  <BookOpen className="w-8 h-8 text-green-600 dark:text-green-400" />
-                </div>
-              </div>
-              <CardTitle className="text-2xl text-center">Create New Course</CardTitle>
-              <CardDescription className="text-center">
-                Set up a new administrator account and create your own training course
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground mb-6 text-center">
-                Each administrator gets their own isolated course with complete data separation. 
-                Create your admin account and course to get started.
-              </p>
-              <Button 
-                onClick={() => navigate("/setup")}
-                className="w-full bg-gradient-military hover:opacity-90 text-white font-semibold py-6 text-lg"
-                size="lg"
-              >
-                Create New Course & Admin
-                <ArrowRight className="w-5 h-5 ml-2" />
-              </Button>
-            </CardContent>
-          </Card>
-
           {/* Login Card - Show when at least one admin exists */}
           {isSetup && (
             <Card className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-2 hover:border-primary/50 transition-all hover:shadow-2xl">
@@ -129,8 +92,20 @@ const LandingPage = () => {
           )}
         </div>
 
+        {/* Super Admin Login Link */}
+        <div className="mt-8 text-center">
+          <Button
+            variant="ghost"
+            className="text-white/80 hover:text-white hover:bg-white/10"
+            onClick={() => navigate("/super-admin/login")}
+          >
+            <Shield className="w-4 h-4 mr-2" />
+            Super Admin Login
+          </Button>
+        </div>
+
         {/* Footer */}
-        <div className="mt-12 text-center text-white/80 text-sm">
+        <div className="mt-8 text-center text-white/80 text-sm">
           <p>Secured by TAWA IT Department</p>
         </div>
       </div>

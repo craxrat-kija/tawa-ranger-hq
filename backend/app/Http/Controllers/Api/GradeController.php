@@ -124,7 +124,7 @@ class GradeController extends Controller
         $assessment = $grade->assessment;
         $canEdit = $assessment->instructor_id === $request->user()->id 
             || $grade->graded_by === $request->user()->id 
-            || $request->user()->role === 'admin';
+            || $request->user()->role === 'admin' || $request->user()->role === 'super_admin';
 
         if (!$canEdit) {
             return response()->json([
@@ -172,7 +172,7 @@ class GradeController extends Controller
         $assessment = $grade->assessment;
         $canDelete = $assessment->instructor_id === $request->user()->id 
             || $grade->graded_by === $request->user()->id 
-            || $request->user()->role === 'admin';
+            || $request->user()->role === 'admin' || $request->user()->role === 'super_admin';
 
         if (!$canDelete) {
             return response()->json([

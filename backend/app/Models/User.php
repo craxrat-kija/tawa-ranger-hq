@@ -108,4 +108,9 @@ class User extends Authenticatable
     {
         return $this->belongsTo(Course::class, 'course_id');
     }
+
+    public function adminPermissions()
+    {
+        return $this->hasOne(AdminPermission::class, 'admin_id');
+    }
 }

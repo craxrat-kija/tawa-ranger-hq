@@ -7,7 +7,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { BookOpen, Users, Calendar, ArrowRight, LogOut } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import tawaBackground from "@/assets/tawa-background.jpg";
 
 interface Course {
   id: number;
@@ -38,7 +37,7 @@ const CourseSelection = () => {
       setIsLoading(true);
       // For admin, show all courses
       // For other users, show only enrolled courses using the dedicated endpoint
-      if (user?.role === "admin") {
+      if (user?.role === "admin" || user?.role === "super_admin") {
         const data = await coursesApi.getAll();
         setCourses(data);
       } else {
@@ -65,7 +64,7 @@ const CourseSelection = () => {
     setSelectedCourse(course);
     
     // Navigate to appropriate dashboard based on role
-    if (user?.role === "admin") {
+    if (user?.role === "admin" || user?.role === "super_admin") {
       navigate("/admin");
     } else if (user?.role === "doctor") {
       navigate("/doctor");
@@ -89,7 +88,7 @@ const CourseSelection = () => {
   };
 
   return (
-    <div className="min-h-screen relative flex flex-col overflow-hidden" style={{ backgroundImage: `url(${tawaBackground})` }}>
+    <div className="min-h-screen relative flex flex-col overflow-hidden bg-background">
       <div className="absolute inset-0 bg-gradient-military/90" />
       
       {/* Header */}
@@ -109,10 +108,10 @@ const CourseSelection = () => {
         <div className="max-w-7xl mx-auto">
           <div className="mb-8 text-center">
             <h2 className="text-4xl font-bold text-white mb-2">
-              {user?.role === "admin" ? "Select or Manage Course" : "Select Your Course"}
+              {(user?.role === "admin" || user?.role === "super_admin") ? "Select or Manage Course" : "Select Your Course"}
             </h2>
             <p className="text-white/80 text-lg">
-              {user?.role === "admin" 
+              {(user?.role === "admin" || user?.role === "super_admin") 
                 ? "Choose a course to manage or create a new one" 
                 : "Please select a course to access your dashboard"}
             </p>
@@ -128,7 +127,7 @@ const CourseSelection = () => {
                 <BookOpen className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
                 <h3 className="text-xl font-semibold mb-2">No Courses Available</h3>
                 <p className="text-muted-foreground">
-                  {user?.role === "admin" 
+                  {(user?.role === "admin" || user?.role === "super_admin") 
                     ? "Create your first course to get started." 
                     : "You are not enrolled in any courses yet. Please contact your administrator."}
                 </p>
@@ -194,19 +193,6 @@ const CourseSelection = () => {
             </div>
           )}
 
-          {user?.role === "admin" && (
-            <div className="mt-8 text-center">
-              <Button 
-                onClick={() => navigate("/admin/courses")} 
-                variant="outline" 
-                className="bg-white/10 border-white/20 text-white hover:bg-white/20"
-                size="lg"
-              >
-                <BookOpen className="w-5 h-5 mr-2" />
-                Manage All Courses
-              </Button>
-            </div>
-          )}
         </div>
       </main>
     </div>

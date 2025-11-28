@@ -12,7 +12,6 @@ import { BookOpen, Save, ArrowLeft, List, Info } from "lucide-react";
 import { Loading } from "@/components/Loading";
 import { coursesApi } from "@/lib/api";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import tawaBackground from "@/assets/tawa-background.jpg";
 
 const CreateCourse = () => {
   const navigate = useNavigate();
@@ -40,14 +39,14 @@ const CreateCourse = () => {
           variant: "destructive",
         });
         navigate("/login");
-      } else if (user && user.role !== "admin") {
+      } else if (user && user.role !== "admin" && user.role !== "super_admin") {
         toast({
           title: "Access Denied",
           description: "Only administrators can create courses.",
           variant: "destructive",
         });
         navigate("/");
-      } else if (isAuthenticated && user?.role === "admin") {
+      } else if (isAuthenticated && (user?.role === "admin" || user?.role === "super_admin")) {
         // Load existing courses
         loadExistingCourses();
       }
@@ -159,10 +158,8 @@ const CreateCourse = () => {
   };
 
   return (
-    <div className="min-h-screen relative flex items-center justify-center overflow-hidden" style={{ backgroundImage: `url(${tawaBackground})` }}>
-      <div className="absolute inset-0 bg-gradient-military/90" />
-      
-      <div className="relative z-10 w-full max-w-4xl mx-auto p-6">
+    <div className="min-h-screen relative flex items-center justify-center overflow-hidden bg-background">
+      <div className="w-full max-w-4xl mx-auto p-6">
         <Card className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm">
           <CardHeader className="text-center space-y-4">
             <div className="flex justify-center">
@@ -193,13 +190,6 @@ const CreateCourse = () => {
                     <List className="w-4 h-4" />
                     Existing Courses ({existingCourses.length})
                   </h4>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => navigate("/admin/courses")}
-                  >
-                    View All
-                  </Button>
                 </div>
                 <div className="space-y-2">
                   {existingCourses.slice(0, 3).map((course: any) => (

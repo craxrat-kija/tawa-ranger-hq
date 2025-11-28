@@ -133,7 +133,7 @@ const ChatBoard = () => {
                     <div className="flex items-center gap-2 mb-1">
                       <span className="font-semibold text-sm">{msg.sender}</span>
                       <span className="text-xs text-muted-foreground">{msg.time}</span>
-                      {(user?.id === msg.userId?.toString() || user?.role === "admin") && (
+                      {(user?.id === msg.userId?.toString() || user?.role === "admin" || user?.role === "super_admin") && (
                         <Button
                           variant="ghost"
                           size="icon"

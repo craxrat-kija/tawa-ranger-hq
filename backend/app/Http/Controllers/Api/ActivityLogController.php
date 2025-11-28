@@ -17,7 +17,7 @@ class ActivityLogController extends Controller
         // Only admins can access this
         $user = $request->user();
         
-        if ($user->role !== 'admin') {
+        if ($user->role !== 'admin' && $user->role !== 'super_admin') {
             return response()->json([
                 'success' => false,
                 'message' => 'Unauthorized. Only admins can view doctor activities.',

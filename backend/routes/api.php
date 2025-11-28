@@ -17,12 +17,15 @@ use App\Http\Controllers\Api\SetupController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\ActivityLogController;
 use App\Http\Controllers\Api\CommentController;
+use App\Http\Controllers\Api\AdminPermissionController;
 use Illuminate\Support\Facades\Route;
 
 // Public routes
 Route::get('/setup/check', [SetupController::class, 'checkSetup']);
+Route::get('/setup/template', [SetupController::class, 'downloadTemplate']);
 Route::post('/setup', [SetupController::class, 'setup']);
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/super-admin/login', [AuthController::class, 'superAdminLogin']);
 Route::post('/register', [AuthController::class, 'register']);
 
 // Protected routes
@@ -33,6 +36,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Users
     Route::apiResource('users', UserController::class);
+    Route::get('/users/template/download', [UserController::class, 'downloadTemplate']);
+    Route::post('/users/import/excel', [UserController::class, 'importFromExcel']);
 
     // Courses
     Route::get('/courses/{course}/enrolled-users', [CourseController::class, 'enrolledUsers']);
@@ -91,5 +96,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/comments', [CommentController::class, 'store']);
     Route::put('/comments/{comment}', [CommentController::class, 'update']);
     Route::delete('/comments/{comment}', [CommentController::class, 'destroy']);
+
+    // Admin Permissions (Super Admin only)
+    Route::get('/admin/permissions', [AdminPermissionController::class, 'index']);
+    Route::put('/admin/permissions/{adminId}', [AdminPermissionController::class, 'update']);
+    Route::get('/admin/permissions/my', [AdminPermissionController::class, 'myPermissions']);
 });
 

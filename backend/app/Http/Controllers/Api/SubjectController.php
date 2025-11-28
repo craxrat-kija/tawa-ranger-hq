@@ -16,8 +16,12 @@ class SubjectController extends Controller
         
         $subjects = Subject::query();
 
-        // Always filter by current user's course_id for isolation
-        if ($courseId) {
+        // Admins can view all subjects across all courses
+        // Only filter by course for non-admin roles
+        if ($currentUser && $currentUser->role === 'admin') {
+            // Regular admins can see all subjects
+            // No course filter applied
+        } elseif ($courseId) {
             $subjects->where('course_id', $courseId);
         } elseif ($request->has('course_id')) {
             $subjects->where('course_id', $request->course_id);
@@ -27,6 +31,16 @@ class SubjectController extends Controller
             $subjects->whereHas('instructors', function ($query) use ($request) {
                 $query->where('users.id', $request->instructor_id)
                       ->where('users.role', 'instructor');
+            });
+        }
+
+        // Search functionality
+        if ($request->has('search')) {
+            $search = $request->search;
+            $subjects->where(function($query) use ($search) {
+                $query->where('name', 'like', "%{$search}%")
+                      ->orWhere('code', 'like', "%{$search}%")
+                      ->orWhere('description', 'like', "%{$search}%");
             });
         }
 

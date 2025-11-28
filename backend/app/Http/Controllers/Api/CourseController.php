@@ -6,11 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Models\Course;
 use App\Models\User;
 use Illuminate\Http\Request;
+use App\Helpers\CourseHelper;
 
 class CourseController extends Controller
 {
     public function index(Request $request)
     {
+        $user = $request->user();
         $courses = Course::with('instructor');
 
         if ($request->has('status')) {
@@ -19,6 +21,16 @@ class CourseController extends Controller
 
         if ($request->has('instructor_id')) {
             $courses->where('instructor_id', $request->instructor_id);
+        }
+
+        // Limit admins to their assigned course for isolation
+        if ($user && $user->role !== 'super_admin') {
+            $courseId = CourseHelper::getCurrentCourseId($user);
+            if ($courseId) {
+                $courses->where('id', $courseId);
+            } else {
+                $courses->whereRaw('1 = 0');
+            }
         }
 
         $coursesList = $courses->get();
@@ -53,6 +65,13 @@ class CourseController extends Controller
     public function store(Request $request)
     {
         $currentUser = $request->user();
+
+        if (!$currentUser || $currentUser->role !== 'super_admin') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only super administrators can create courses.',
+            ], 403);
+        }
         
         $validated = $request->validate([
             'code' => 'required|string|max:50|regex:/^[A-Z0-9]+$/|unique:courses,code',
@@ -64,17 +83,12 @@ class CourseController extends Controller
             'status' => 'sometimes|in:active,completed,upcoming',
             'description' => 'nullable|string',
             'content' => 'nullable|string',
+            'location' => 'nullable|string|max:255',
         ]);
 
         // Ensure code is uppercase
         $validated['code'] = strtoupper($validated['code']);
-
         $course = Course::create($validated);
-
-        // If admin created the course and doesn't have a course_id, assign them to this new course
-        if ($currentUser && $currentUser->role === 'admin' && !$currentUser->course_id) {
-            $currentUser->update(['course_id' => $course->id]);
-        }
 
         return response()->json([
             'success' => true,
@@ -85,6 +99,13 @@ class CourseController extends Controller
 
     public function show(Request $request, Course $course)
     {
+        if (!$this->userCanAccessCourse($request->user(), $course) && !$this->userIsCourseEnrolled($request->user(), $course)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Course does not belong to you.',
+            ], 403);
+        }
+
         $courseData = $course->load('instructor')->toArray();
         
         // Check if user is enrolled (only enrolled users can see content)
@@ -93,8 +114,8 @@ class CourseController extends Controller
             $isEnrolled = $request->user()->enrolledCourses()->where('courses.id', $course->id)->exists();
         }
         
-        // Only include content if user is enrolled or is admin
-        if (!$isEnrolled && $request->user()?->role !== 'admin') {
+        // Only include content if user is enrolled or is admin/super_admin
+        if (!$isEnrolled && $request->user()?->role !== 'admin' && $request->user()?->role !== 'super_admin') {
             unset($courseData['content']);
         }
         
@@ -108,6 +129,13 @@ class CourseController extends Controller
 
     public function update(Request $request, Course $course)
     {
+        if (!$this->userCanAccessCourse($request->user(), $course)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. You can only manage your assigned course.',
+            ], 403);
+        }
+
         $validated = $request->validate([
             'name' => 'sometimes|string|max:255',
             'type' => 'sometimes|string',
@@ -117,6 +145,7 @@ class CourseController extends Controller
             'status' => 'sometimes|in:active,completed,upcoming',
             'description' => 'nullable|string',
             'content' => 'nullable|string',
+            'location' => 'nullable|string|max:255',
             'trainees' => 'sometimes|integer|min:0',
         ]);
 
@@ -129,8 +158,15 @@ class CourseController extends Controller
         ]);
     }
 
-    public function destroy(Course $course)
+    public function destroy(Request $request, Course $course)
     {
+        if (!$this->userCanAccessCourse($request->user(), $course)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. You can only delete your assigned course.',
+            ], 403);
+        }
+
         $course->delete();
 
         return response()->json([
@@ -248,11 +284,18 @@ class CourseController extends Controller
      */
     public function enrollUser(Request $request, Course $course, User $user)
     {
-        // Check if user is admin
-        if ($request->user()->role !== 'admin') {
+        // Check if user is admin or super_admin
+        if ($request->user()->role !== 'admin' && $request->user()->role !== 'super_admin') {
             return response()->json([
                 'success' => false,
                 'message' => 'Unauthorized. Only admins can enroll users.',
+            ], 403);
+        }
+
+        if (!$this->userCanAccessCourse($request->user(), $course)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Course does not belong to you.',
             ], 403);
         }
 
@@ -288,11 +331,18 @@ class CourseController extends Controller
      */
     public function unenrollUser(Request $request, Course $course, User $user)
     {
-        // Check if user is admin
-        if ($request->user()->role !== 'admin') {
+        // Check if user is admin or super_admin
+        if ($request->user()->role !== 'admin' && $request->user()->role !== 'super_admin') {
             return response()->json([
                 'success' => false,
                 'message' => 'Unauthorized. Only admins can unenroll users.',
+            ], 403);
+        }
+
+        if (!$this->userCanAccessCourse($request->user(), $course)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Course does not belong to you.',
             ], 403);
         }
 
@@ -322,11 +372,18 @@ class CourseController extends Controller
      */
     public function enrolledUsers(Request $request, Course $course)
     {
-        // Check if user is admin
-        if ($request->user()->role !== 'admin') {
+        // Check if user is admin or super_admin
+        if ($request->user()->role !== 'admin' && $request->user()->role !== 'super_admin') {
             return response()->json([
                 'success' => false,
                 'message' => 'Unauthorized. Only admins can view enrolled users.',
+            ], 403);
+        }
+
+        if (!$this->userCanAccessCourse($request->user(), $course)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Course does not belong to you.',
             ], 403);
         }
 
@@ -348,5 +405,30 @@ class CourseController extends Controller
             'success' => true,
             'data' => $users,
         ]);
+    }
+    private function userCanAccessCourse(?User $user, Course $course): bool
+    {
+        if (!$user) {
+            return false;
+        }
+
+        if ($user->role === 'super_admin') {
+            return true;
+        }
+
+        return $user->course_id === $course->id;
+    }
+
+    private function userIsCourseEnrolled(?User $user, Course $course): bool
+    {
+        if (!$user) {
+            return false;
+        }
+
+        if ($this->userCanAccessCourse($user, $course)) {
+            return true;
+        }
+
+        return $user->enrolledCourses()->where('courses.id', $course->id)->exists();
     }
 }

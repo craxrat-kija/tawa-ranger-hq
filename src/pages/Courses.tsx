@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { coursesApi, usersApi } from "@/lib/api";
-import { Plus, BookOpen, Users, Calendar, Trash2, Edit, Eye, LogIn, LogOut, UserPlus, UserMinus } from "lucide-react";
+import { Plus, BookOpen, Users, Calendar, Trash2, Edit, Eye, LogIn, LogOut, UserPlus, UserMinus, MapPin } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface Course {
@@ -27,6 +27,7 @@ interface Course {
   status: "active" | "completed" | "upcoming";
   description?: string;
   content?: string;
+  location?: string;
   is_enrolled?: boolean;
   enrolled_at?: string;
 }
@@ -35,7 +36,10 @@ const Courses = () => {
   const { user, refreshUser } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const isAdmin = user?.role === "admin";
+  const isSuperAdmin = user?.role === "super_admin";
+  const isCourseAdmin = user?.role === "admin";
+  const isAdmin = isSuperAdmin || isCourseAdmin;
+  const canCreateCourses = isSuperAdmin;
   const [showAddForm, setShowAddForm] = useState(false);
   const [showContentDialog, setShowContentDialog] = useState(false);
   const [showEnrollmentDialog, setShowEnrollmentDialog] = useState(false);
@@ -61,40 +65,63 @@ const Courses = () => {
     status: "upcoming" as "active" | "completed" | "upcoming",
     description: "",
     content: "",
+    location: "",
+  });
+
+  const mapCourseResponse = (c: any): Course => ({
+    id: c.id,
+    code: c.code,
+    name: c.name,
+    type: c.type,
+    duration: c.duration,
+    trainees: c.trainees || 0,
+    instructor: c.instructor,
+    instructor_id: c.instructor_id,
+    start_date: c.start_date,
+    status: c.status || "upcoming",
+    description: c.description,
+    content: c.content,
+    location: c.location,
+    is_enrolled: c.is_enrolled || false,
+    enrolled_at: c.enrolled_at,
   });
 
   useEffect(() => {
-    if (user) {
+    if (!user) return;
+
+    if (isAdmin) {
       loadCourses();
-      if (isAdmin) {
-        loadInstructors();
-        loadAllUsers();
-      } else {
-        loadEnrolledCourses();
-        loadAvailableCourses();
-      }
+      loadInstructors();
+      loadAllUsers();
+    } else {
+      setIsLoading(false);
+      loadEnrolledCourses();
+      loadAvailableCourses();
     }
   }, [user, isAdmin]);
 
   const loadCourses = async () => {
+    if (!isAdmin) {
+      setCourses([]);
+      setIsLoading(false);
+      return;
+    }
+
     try {
       setIsLoading(true);
-      const data = await coursesApi.getAll();
-      setCourses(data.map((c: any) => ({
-        id: c.id,
-        code: c.code,
-        name: c.name,
-        type: c.type,
-        duration: c.duration,
-        trainees: c.trainees || 0,
-        instructor: c.instructor,
-        instructor_id: c.instructor_id,
-        start_date: c.start_date,
-        status: c.status || "upcoming",
-        description: c.description,
-        content: c.content,
-        is_enrolled: c.is_enrolled || false,
-      })));
+      if (isSuperAdmin) {
+        const data = await coursesApi.getAll();
+        setCourses(data.map(mapCourseResponse));
+      } else if (user?.course_id) {
+        const course = await coursesApi.getById(user.course_id.toString());
+        if (course) {
+          setCourses([mapCourseResponse(course)]);
+        } else {
+          setCourses([]);
+        }
+      } else {
+        setCourses([]);
+      }
     } catch (error) {
       console.error('Error loading courses:', error);
       toast({
@@ -247,6 +274,17 @@ const Courses = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Prevent regular admins from creating new courses
+    if (!editingCourse && !canCreateCourses) {
+      toast({
+        title: "Access Denied",
+        description: "You do not have permission to create new courses.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     try {
       if (editingCourse) {
         const updatePayload: any = {
@@ -272,6 +310,10 @@ const Courses = () => {
           updatePayload.content = formData.content;
         }
         
+        if (formData.location !== undefined) {
+          updatePayload.location = formData.location;
+        }
+        
         await coursesApi.update(editingCourse.id.toString(), updatePayload);
         toast({
           title: "Course Updated",
@@ -285,6 +327,7 @@ const Courses = () => {
           duration: formData.duration,
           start_date: formData.start_date,
           status: formData.status,
+          location: formData.location || null,
         };
         
         if (formData.instructor_id && formData.instructor_id !== "none") {
@@ -324,7 +367,7 @@ const Courses = () => {
   };
 
   const resetForm = () => {
-    setFormData({ code: "", name: "", type: "", duration: "", instructor_id: "none", start_date: "", status: "upcoming", description: "", content: "" });
+    setFormData({ code: "", name: "", type: "", duration: "", instructor_id: "none", start_date: "", status: "upcoming", description: "", content: "", location: "" });
     setShowAddForm(false);
     setEditingCourse(null);
   };
@@ -344,6 +387,7 @@ const Courses = () => {
         status: fullCourse.status,
         description: fullCourse.description || "",
         content: fullCourse.content || "",
+        location: fullCourse.location || "",
       });
       setShowAddForm(true);
     } catch (error: any) {
@@ -495,6 +539,12 @@ const Courses = () => {
             <Users className="w-4 h-4" />
             <span>{course.trainees || 0} Trainees</span>
           </div>
+          {course.location && (
+            <div className="flex items-center gap-2">
+              <MapPin className="w-4 h-4" />
+              <span>{course.location}</span>
+            </div>
+          )}
           <div className="font-medium text-foreground">
             Instructor: {course.instructor?.name || "Not assigned"}
           </div>
@@ -548,12 +598,14 @@ const Courses = () => {
             {isAdmin ? "Manage Courses" : "Courses"}
           </h1>
           <p className="text-muted-foreground">
-            {isAdmin 
-              ? "Create and manage training courses with content" 
-              : "Browse and enroll in available courses"}
+            {isSuperAdmin
+              ? "Create and manage training courses across the system"
+              : isAdmin
+                ? "View and update your assigned course and its resources"
+                : "Browse and enroll in available courses"}
           </p>
         </div>
-        {isAdmin && (
+        {canCreateCourses && (
           <Button onClick={() => setShowAddForm(true)} className="bg-gradient-military">
             <Plus className="w-4 h-4 mr-2" />
             Add Course
@@ -568,9 +620,9 @@ const Courses = () => {
         }}>
           <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>{editingCourse ? "Edit Course" : "Create New Course"}</DialogTitle>
+              <DialogTitle>{editingCourse ? "Edit Course" : canCreateCourses ? "Create New Course" : "Edit Course"}</DialogTitle>
               <DialogDescription>
-                {editingCourse ? "Update course information and content" : "Add a new training course to the system"}
+                {editingCourse ? "Update course information and content" : canCreateCourses ? "Add a new training course to the system" : "Update course information and content"}
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -656,6 +708,16 @@ const Courses = () => {
                     value={formData.start_date}
                     onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
                     required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="location">Location</Label>
+                  <Input
+                    id="location"
+                    value={formData.location}
+                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                    placeholder="e.g., Fort Ikoma, Arusha"
                   />
                 </div>
 
@@ -850,7 +912,9 @@ const Courses = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {courses.length === 0 ? (
             <div className="col-span-full text-center py-8 text-muted-foreground">
-              No courses found. Create your first course to get started.
+              {isSuperAdmin
+                ? "No courses found. Create a course to get started."
+                : "You do not have a course assigned yet. Please contact the super admin."}
             </div>
           ) : (
             courses.map(renderCourseCard)

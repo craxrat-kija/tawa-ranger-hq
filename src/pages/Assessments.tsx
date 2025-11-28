@@ -65,8 +65,8 @@ const Assessments = () => {
     try {
       setIsLoading(true);
       const [assessmentsData, subjectsData, traineesData] = await Promise.all([
-        assessmentsApi.getAll(user?.role === 'admin' ? undefined : user?.id?.toString()),
-        subjectsApi.getAll(user?.role === 'admin' ? undefined : user?.id?.toString()),
+        assessmentsApi.getAll((user?.role === 'admin' || user?.role === 'super_admin') ? undefined : user?.id?.toString()),
+        subjectsApi.getAll((user?.role === 'admin' || user?.role === 'super_admin') ? undefined : user?.id?.toString()),
         usersApi.getAll('trainee'),
       ]);
       
@@ -241,7 +241,7 @@ const Assessments = () => {
           <h1 className="text-3xl font-bold text-primary">Assessments & Grades</h1>
           <p className="text-muted-foreground">Manage assessments and record trainee grades</p>
         </div>
-        {(user?.role === "admin" || user?.role === "instructor") && (
+        {((user?.role === "admin" || user?.role === "super_admin" || user?.role === "instructor")) && (
           <Button
             onClick={() => {
               setSelectedAssessment(null);
@@ -513,7 +513,7 @@ const Assessments = () => {
                         >
                           <FileText className="w-4 h-4" />
                         </Button>
-                        {(user?.role === "admin" || assessment.instructor_id === parseInt(user?.id?.toString() || "0")) && (
+                        {((user?.role === "admin" || user?.role === "super_admin" || assessment.instructor_id === parseInt(user?.id?.toString() || "0"))) && (
                           <Button
                             variant="ghost"
                             size="icon"

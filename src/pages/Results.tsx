@@ -53,7 +53,7 @@ const Results = () => {
       
       // For instructors, get grades from their assessments only
       // For admin, get all grades (instructorId = undefined)
-      const instructorId = user.role === 'admin' ? undefined : user.id?.toString();
+      const instructorId = (user.role === 'admin' || user.role === 'super_admin') ? undefined : user.id?.toString();
       
       const [gradesData, traineesData, assessmentsData, subjectsData] = await Promise.all([
         gradesApi.getAll(undefined, undefined, instructorId),
@@ -175,7 +175,7 @@ const Results = () => {
         <div>
           <h1 className="text-3xl font-bold text-primary">Results & Grades</h1>
           <p className="text-muted-foreground">
-            {user?.role === 'admin' 
+            {(user?.role === 'admin' || user?.role === 'super_admin') 
               ? "Review and manage all trainee performance across all instructors"
               : "Review and manage trainee performance"}
           </p>
@@ -241,7 +241,7 @@ const Results = () => {
               <p className="text-sm">
                 {user?.role === 'instructor' 
                   ? "You haven't recorded any grades yet. Go to Assessments to create assessments and record grades for trainees."
-                  : user?.role === 'admin'
+                  : (user?.role === 'admin' || user?.role === 'super_admin')
                   ? "No grades have been recorded in the system yet. Instructors can create assessments and record grades for trainees."
                   : "No grades have been recorded yet."}
               </p>
@@ -256,7 +256,7 @@ const Results = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Trainee</TableHead>
-                  {user?.role === "admin" && <TableHead>Instructor</TableHead>}
+                  {(user?.role === "admin" || user?.role === "super_admin") && <TableHead>Instructor</TableHead>}
                   <TableHead>Assessment</TableHead>
                   <TableHead>Subject</TableHead>
                   <TableHead>Type</TableHead>
@@ -265,7 +265,7 @@ const Results = () => {
                   <TableHead>Max Score</TableHead>
                   <TableHead>Percentage</TableHead>
                   <TableHead>Comments</TableHead>
-                  {(user?.role === "admin" || user?.role === "instructor") && <TableHead>Actions</TableHead>}
+                  {((user?.role === "admin" || user?.role === "super_admin" || user?.role === "instructor")) && <TableHead>Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -277,7 +277,7 @@ const Results = () => {
                   return (
                     <TableRow key={grade.id}>
                       <TableCell className="font-medium">{grade.trainee?.name || "N/A"}</TableCell>
-                      {user?.role === "admin" && (
+                      {(user?.role === "admin" || user?.role === "super_admin") && (
                         <TableCell>{grade.assessment?.instructor?.name || "N/A"}</TableCell>
                       )}
                       <TableCell>{grade.assessment?.title || "N/A"}</TableCell>
@@ -302,7 +302,7 @@ const Results = () => {
                         </span>
                       </TableCell>
                       <TableCell className="max-w-xs truncate">{grade.comments || "-"}</TableCell>
-                      {(user?.role === "admin" || user?.role === "instructor") && (
+                      {((user?.role === "admin" || user?.role === "super_admin" || user?.role === "instructor")) && (
                         <TableCell>
                           <Button
                             variant="ghost"

@@ -2,7 +2,7 @@ import { createContext, useContext, useState, ReactNode, useMemo, useCallback } 
 import React from "react";
 import { authApi, setAuthToken, removeAuthToken } from "@/lib/api";
 
-export type UserRole = "admin" | "instructor" | "trainee" | "doctor";
+export type UserRole = "admin" | "instructor" | "trainee" | "doctor" | "super_admin";
 
 interface User {
   id: string;
@@ -20,13 +20,14 @@ interface User {
 interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<{ success: boolean; user?: User }>;
+  superAdminLogin: (email: string, password: string) => Promise<{ success: boolean; user?: User }>;
   logout: () => void;
   refreshUser: () => Promise<void>;
   isAuthenticated: boolean;
   isLoading: boolean;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType | null>(null);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -108,6 +109,42 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
+  const superAdminLogin = useCallback(async (userId: string, password: string): Promise<{ success: boolean; user?: User }> => {
+    try {
+      const response = await authApi.superAdminLogin(userId, password);
+      
+      // Handle response structure - backend returns { success: true, data: { user: ..., token: ... } }
+      if (!response || !response.token || !response.user) {
+        console.error('Invalid login response:', response);
+        return { success: false };
+      }
+      
+      // Verify it's actually a super admin
+      if (response.user.role !== 'super_admin') {
+        throw new Error('This login page is only for Super Administrators.');
+      }
+      
+      setAuthToken(response.token);
+      const userData = {
+        id: response.user.id.toString(),
+        user_id: response.user.user_id || response.user.id.toString(),
+        name: response.user.name,
+        email: response.user.email,
+        role: response.user.role,
+        avatar: response.user.avatar,
+        phone: response.user.phone,
+        department: response.user.department,
+        course_id: response.user.course_id,
+        course_name: response.user.course_name || null,
+      };
+      setUser(userData);
+      return { success: true, user: userData };
+    } catch (error: any) {
+      console.error('Super admin login error:', error);
+      throw error; // Re-throw to let the component handle the error message
+    }
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       await authApi.logout();
@@ -149,12 +186,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     () => ({
       user,
       login,
+      superAdminLogin,
       logout,
       refreshUser,
       isAuthenticated: !!user,
       isLoading,
     }),
-    [user, isLoading, login, logout, refreshUser]
+    [user, isLoading, login, superAdminLogin, logout, refreshUser]
   );
 
   return (
@@ -166,7 +204,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
+  if (context === null) {
     throw new Error("useAuth must be used within AuthProvider");
   }
   return context;

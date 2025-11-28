@@ -99,7 +99,7 @@ class CommentController extends Controller
         $user = $request->user();
 
         // Only the comment author or admin can delete
-        if ($comment->user_id !== $user->id && $user->role !== 'admin') {
+        if ($comment->user_id !== $user->id && $user->role !== 'admin' && $user->role !== 'super_admin') {
             return response()->json([
                 'success' => false,
                 'message' => 'Unauthorized. You can only delete your own comments.',
@@ -114,6 +114,7 @@ class CommentController extends Controller
         ]);
     }
 }
+
 
 
 

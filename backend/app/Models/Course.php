@@ -23,6 +23,7 @@ class Course extends Model
         'status',
         'description',
         'content',
+        'location',
     ];
 
     protected function casts(): array

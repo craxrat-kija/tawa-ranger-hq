@@ -113,7 +113,7 @@ class AssessmentController extends Controller
         }
         
         // Only allow instructor who created it or admin to update
-        if ($assessment->instructor_id !== $request->user()->id && $request->user()->role !== 'admin') {
+        if ($assessment->instructor_id !== $request->user()->id && $request->user()->role !== 'admin' && $request->user()->role !== 'super_admin') {
             return response()->json([
                 'success' => false,
                 'message' => 'Unauthorized',
@@ -153,7 +153,7 @@ class AssessmentController extends Controller
         }
         
         // Only allow instructor who created it or admin to delete
-        if ($assessment->instructor_id !== $request->user()->id && $request->user()->role !== 'admin') {
+        if ($assessment->instructor_id !== $request->user()->id && $request->user()->role !== 'admin' && $request->user()->role !== 'super_admin') {
             return response()->json([
                 'success' => false,
                 'message' => 'Unauthorized',

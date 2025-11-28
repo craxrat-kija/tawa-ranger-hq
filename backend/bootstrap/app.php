@@ -14,11 +14,19 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->api(prepend: [
-            \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+            \App\Http\Middleware\HandleCors::class,
         ]);
 
         $middleware->alias([
             'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
+        ]);
+
+        // Exclude all API routes from CSRF verification (we use Bearer tokens for authentication)
+        $middleware->validateCsrfTokens(except: [
+            'api/*',
+            'api/login',
+            'api/super-admin/login',
+            'api/register',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

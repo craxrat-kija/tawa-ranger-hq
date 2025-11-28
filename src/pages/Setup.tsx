@@ -7,13 +7,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { RotatingLogo } from "@/components/RotatingLogo";
-import { Settings, User, BookOpen, Calendar, Save } from "lucide-react";
-import tawaBackground from "@/assets/tawa-background.jpg";
+import { Settings, User, BookOpen, Calendar, Save, Download, Upload } from "lucide-react";
 
 const Setup = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [excelFile, setExcelFile] = useState<File | null>(null);
   const [formData, setFormData] = useState({
     // Admin Information
     adminName: "",
@@ -29,20 +29,74 @@ const Setup = () => {
     courseDuration: "",
     courseDescription: "",
     startDate: "",
+    location: "",
   });
+
+  const downloadTemplate = async () => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'}/setup/template`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to download template');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'user_import_template.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: "Template Downloaded",
+        description: "Excel template downloaded successfully. Please fill it with user data.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Download Failed",
+        description: error.message || "Failed to download template. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
+      const formDataToSend = new FormData();
+      formDataToSend.append('adminName', formData.adminName);
+      formDataToSend.append('adminEmail', formData.adminEmail);
+      formDataToSend.append('adminPassword', formData.adminPassword);
+      formDataToSend.append('adminPhone', formData.adminPhone || '');
+      formDataToSend.append('adminDepartment', formData.adminDepartment || '');
+      formDataToSend.append('courseCode', formData.courseCode);
+      formDataToSend.append('courseName', formData.courseName);
+      formDataToSend.append('courseType', formData.courseType);
+      formDataToSend.append('courseDuration', formData.courseDuration);
+      formDataToSend.append('courseDescription', formData.courseDescription || '');
+      formDataToSend.append('startDate', formData.startDate);
+      formDataToSend.append('location', formData.location || '');
+
+      if (excelFile) {
+        formDataToSend.append('users_file', excelFile);
+      }
+
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'}/setup`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: formDataToSend,
       });
 
       const data = await response.json();
@@ -50,15 +104,15 @@ const Setup = () => {
       if (!response.ok) {
         throw new Error(data.message || 'Setup failed');
       }
-
+      
       toast({
         title: "Course & Admin Created",
-        description: "Your admin account and course have been created successfully. You can now login.",
+        description: data.message || "Your admin account and course have been created successfully. You can now login.",
       });
 
-      // Redirect to landing page after a short delay
+      // Redirect to admin dashboard after a short delay
       setTimeout(() => {
-        navigate("/");
+        navigate("/admin");
       }, 2000);
     } catch (error: any) {
       console.error('Setup error:', error);
@@ -73,10 +127,8 @@ const Setup = () => {
   };
 
   return (
-    <div className="min-h-screen relative flex items-center justify-center overflow-hidden" style={{ backgroundImage: `url(${tawaBackground})` }}>
-      <div className="absolute inset-0 bg-gradient-military/90" />
-      
-      <div className="relative z-10 w-full max-w-4xl mx-auto p-6">
+    <div className="min-h-screen relative flex items-center justify-center overflow-hidden bg-background">
+      <div className="w-full max-w-4xl mx-auto p-6">
         <Card className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm">
           <CardHeader className="text-center space-y-4">
             <div className="flex justify-center">
@@ -224,6 +276,17 @@ const Setup = () => {
                     />
                   </div>
                   
+                  <div className="space-y-2">
+                    <Label htmlFor="location">Location *</Label>
+                    <Input
+                      id="location"
+                      value={formData.location}
+                      onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                      placeholder="e.g., Fort Ikoma, Arusha"
+                      required
+                    />
+                  </div>
+                  
                   <div className="space-y-2 md:col-span-2">
                     <Label htmlFor="courseDescription">Course Description</Label>
                     <Textarea
@@ -233,6 +296,52 @@ const Setup = () => {
                       placeholder="Enter course description..."
                       rows={4}
                     />
+                  </div>
+                </div>
+              </div>
+
+              {/* User Import Section */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 pb-2 border-b">
+                  <User className="w-5 h-5 text-primary" />
+                  <h3 className="text-xl font-semibold">Import Users (Optional)</h3>
+                </div>
+                
+                <div className="space-y-4">
+                  <div className="p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
+                    <p className="text-sm text-blue-800 dark:text-blue-200 mb-3">
+                      <strong>Bulk User Import:</strong> Download the Excel template, fill it with user information, then upload it here. 
+                      Users will be created without passwords and can be edited later by the admin.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={downloadTemplate}
+                      className="w-full sm:w-auto"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Download Excel Template
+                    </Button>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="excelFile">Upload Filled Excel File</Label>
+                    <Input
+                      id="excelFile"
+                      type="file"
+                      accept=".xlsx,.xls"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setExcelFile(file);
+                        }
+                      }}
+                    />
+                    {excelFile && (
+                      <p className="text-sm text-muted-foreground">
+                        Selected: {excelFile.name}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>

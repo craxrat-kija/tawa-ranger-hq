@@ -6,23 +6,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RotatingLogo } from "@/components/RotatingLogo";
-import { Lock, Mail, User, Copy, Check } from "lucide-react";
+import { Lock, Mail, User, Shield, Copy, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-const Login = () => {
+const SuperAdminLogin = () => {
   const [userId, setUserId] = useState("");
   const [password, setPassword] = useState("");
   const [showCredentials, setShowCredentials] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
-  const { login, user } = useAuth();
+  const { superAdminLogin, user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Updated credentials to use user_id or email for backward compatibility
+  // Super Admin credentials (for development/testing)
   const credentials = [
-    { role: "Admin", user_id: "admin@tawa.go.tz", password: "tawa2024", color: "bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400" },
-    { role: "Instructor", user_id: "instructor@tawa.go.tz", password: "tawa2024", color: "bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400" },
-    { role: "Doctor", user_id: "doctor@tawa.go.tz", password: "tawa2024", color: "bg-green-500/10 border-green-500/20 text-green-600 dark:text-green-400" },
+    { role: "Super Admin", user_id: "superadmin@tawa.go.tz", password: "superadmin2024", color: "bg-purple-500/10 border-purple-500/20 text-purple-600 dark:text-purple-400" },
   ];
 
   const copyToClipboard = (text: string, index: number) => {
@@ -45,47 +43,16 @@ const Login = () => {
     e.preventDefault();
     
     try {
-      const result = await login(userId, password);
+      const result = await superAdminLogin(userId, password);
       
       if (result.success && result.user) {
         toast({
           title: "Login Successful",
-          description: `Welcome to TAWA Training Portal`,
+          description: `Welcome, Super Administrator`,
         });
         
-        // Navigate based on actual user role from login response
-        const userRole = result.user.role;
-        
-        // Trainees cannot login to the system
-        if (userRole === "trainee") {
-          toast({
-            title: "Access Denied",
-            description: "Trainees do not have access to the login system. Please contact your administrator.",
-            variant: "destructive",
-          });
-          return;
-        }
-        
-        // Prevent super_admin from logging in through regular login
-        if (userRole === "super_admin") {
-          toast({
-            title: "Access Denied",
-            description: "Super admins must use the dedicated super admin login page.",
-            variant: "destructive",
-          });
-          return;
-        }
-        
-        // Navigate based on role
-        if (userRole === "admin") {
-          navigate("/admin");
-        } else if (userRole === "doctor") {
-          navigate("/doctor");
-        } else if (userRole === "instructor") {
-          navigate("/instructor");
-        } else {
-          navigate("/admin"); // Default fallback
-        }
+        // Navigate to super admin dashboard
+        navigate("/super-admin");
       } else {
         toast({
           title: "Login Failed",
@@ -108,22 +75,31 @@ const Login = () => {
 
       {/* Animated Patterns */}
       <div className="absolute inset-0 opacity-10">
-        <div className="absolute top-10 left-10 w-64 h-64 bg-accent rounded-full blur-3xl animate-pulse-glow" />
-        <div className="absolute bottom-10 right-10 w-96 h-96 bg-accent rounded-full blur-3xl animate-pulse-glow delay-1000" />
+        <div className="absolute top-10 left-10 w-64 h-64 bg-purple-500 rounded-full blur-3xl animate-pulse-glow" />
+        <div className="absolute bottom-10 right-10 w-96 h-96 bg-indigo-500 rounded-full blur-3xl animate-pulse-glow delay-1000" />
       </div>
 
       {/* Login Card */}
       <div className="relative z-10 w-full max-w-md mx-4">
-        <div className="bg-card/95 backdrop-blur-xl rounded-2xl shadow-2xl p-8 border border-accent/20 animate-slide-up">
+        <div className="bg-card/95 backdrop-blur-xl rounded-2xl shadow-2xl p-8 border border-purple-500/20 animate-slide-up">
           {/* Logo */}
           <div className="flex justify-center mb-6">
-            <RotatingLogo className="w-32 h-32" />
+            <div className="relative">
+              <RotatingLogo className="w-32 h-32" />
+              <div className="absolute -top-2 -right-2 bg-purple-600 rounded-full p-2 border-2 border-background">
+                <Shield className="w-6 h-6 text-white" />
+              </div>
+            </div>
           </div>
 
           {/* Title */}
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-primary mb-2">TAWA Training Portal</h1>
+            <h1 className="text-3xl font-bold text-purple-400 mb-2 flex items-center justify-center gap-2">
+              <Shield className="w-8 h-8" />
+              Super Admin Portal
+            </h1>
             <p className="text-muted-foreground">Tanzania Wildlife Management Authority</p>
+            <p className="text-xs text-purple-300/80 mt-2">Elevated Access Control</p>
           </div>
 
           {/* Form */}
@@ -131,19 +107,19 @@ const Login = () => {
             <div className="space-y-2">
               <Label htmlFor="user_id" className="flex items-center gap-2">
                 <User className="w-4 h-4" />
-                User ID / Username
+                Super Admin User ID
               </Label>
               <Input
                 id="user_id"
                 type="text"
                 value={userId}
                 onChange={(e) => setUserId(e.target.value)}
-                placeholder="e.g., TAWA-20251118-AD001 or admin@tawa.go.tz"
+                placeholder="e.g., superadmin@tawa.go.tz"
                 required
-                className="border-primary/30"
+                className="border-purple-500/30 focus:border-purple-500"
               />
               <p className="text-xs text-muted-foreground">
-                Enter your User ID (e.g., TAWA-20251118-IN001) or email for existing users
+                Enter your Super Admin credentials
               </p>
             </div>
 
@@ -159,15 +135,16 @@ const Login = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                className="border-primary/30"
+                className="border-purple-500/30 focus:border-purple-500"
               />
             </div>
 
             <Button 
               type="submit" 
-              className="w-full bg-gradient-military hover:opacity-90 text-white font-semibold py-6 text-lg shadow-lg"
+              className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold py-6 text-lg shadow-lg"
             >
-              Access System
+              <Shield className="w-5 h-5 mr-2" />
+              Access Super Admin Panel
             </Button>
           </form>
 
@@ -176,19 +153,22 @@ const Login = () => {
             <Button
               type="button"
               variant="outline"
-              className="w-full"
+              className="w-full border-purple-500/30 hover:bg-purple-500/10"
               onClick={() => setShowCredentials(!showCredentials)}
             >
-              <User className="w-4 h-4 mr-2" />
-              {showCredentials ? "Hide" : "Show"} Login Credentials
+              <Shield className="w-4 h-4 mr-2" />
+              {showCredentials ? "Hide" : "Show"} Super Admin Credentials
             </Button>
 
             {showCredentials && (
-              <Card className="bg-card/50 border-accent/20">
+              <Card className="bg-card/50 border-purple-500/20">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-semibold">Available Accounts</CardTitle>
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <Shield className="w-4 h-4" />
+                    Super Admin Account
+                  </CardTitle>
                   <CardDescription className="text-xs">
-                    Click on any credential to auto-fill the login form
+                    Click on the credential to auto-fill the login form
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">
@@ -201,6 +181,7 @@ const Login = () => {
                       <div className="flex items-center justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
+                            <Shield className="w-4 h-4" />
                             <span className="font-semibold text-sm">{cred.role}</span>
                           </div>
                           <div className="text-xs space-y-1">
@@ -247,15 +228,31 @@ const Login = () => {
               </Card>
             )}
           </div>
+
+          {/* Link to regular login */}
+          <div className="mt-6 text-center">
+            <Button
+              type="button"
+              variant="ghost"
+              className="text-sm text-muted-foreground hover:text-foreground"
+              onClick={() => navigate("/login")}
+            >
+              Regular User Login →
+            </Button>
+          </div>
         </div>
 
         {/* Bottom Badge */}
         <div className="mt-4 text-center text-white/80 text-sm">
-          <p>Secured by TAWA IT Department</p>
+          <p className="flex items-center justify-center gap-2">
+            <Shield className="w-4 h-4" />
+            Secured Super Admin Access - TAWA IT Department
+          </p>
         </div>
       </div>
     </div>
   );
 };
 
-export default Login;
+export default SuperAdminLogin;
+

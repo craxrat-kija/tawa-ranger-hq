@@ -241,7 +241,7 @@ export const Comments = ({ commentableType, commentableId }: CommentsProps) => {
                   ) : (
                     <>
                       <p className="text-sm whitespace-pre-wrap">{comment.comment}</p>
-                      {user && (user.id === comment.user_id || user.role === 'admin') && (
+                      {user && (user.id === comment.user_id || user.role === 'admin' || user.role === 'super_admin') && (
                         <div className="flex gap-2 mt-2">
                           {user.id === comment.user_id && (
                             <Button
@@ -276,6 +276,7 @@ export const Comments = ({ commentableType, commentableId }: CommentsProps) => {
     </Card>
   );
 };
+
 
 
 

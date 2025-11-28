@@ -17,8 +17,12 @@ class MaterialController extends Controller
         
         $materials = Material::with('uploader');
 
-        // Always filter by current user's course_id for isolation
-        if ($courseId) {
+        // Admins can view all materials across all courses
+        // Only filter by course for non-admin roles
+        if ($currentUser && $currentUser->role === 'admin') {
+            // Regular admins can see all materials
+            // No course filter applied
+        } elseif ($courseId) {
             $materials->where('course_id', $courseId);
         } elseif ($request->has('course_id')) {
             // Fallback to request parameter if user has no course (shouldn't happen)
