@@ -282,7 +282,7 @@ export const usersApi = {
     const token = getToken();
     const formData = new FormData();
     formData.append('users_file', file);
-    if (courseId) {
+    if (courseId !== undefined && courseId !== null) {
       formData.append('course_id', courseId.toString());
     }
     

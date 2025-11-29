@@ -9,12 +9,37 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-export const ThemeProvider = ({ children }: { children: ReactNode }) => {
-  const [theme, setTheme] = useState<Theme>("light");
+const THEME_STORAGE_KEY = "tawa-theme";
 
+export const ThemeProvider = ({ children }: { children: ReactNode }) => {
+  // Load theme from localStorage on initialization, default to "light"
+  const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof window !== "undefined") {
+      const savedTheme = localStorage.getItem(THEME_STORAGE_KEY) as Theme;
+      if (savedTheme && ["light", "dark", "tawa"].includes(savedTheme)) {
+        return savedTheme;
+      }
+    }
+    return "light";
+  });
+
+  // Save theme to localStorage whenever it changes
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(THEME_STORAGE_KEY, theme);
+    }
+  }, [theme]);
+
+  // Apply theme to document root
   useEffect(() => {
     const root = window.document.documentElement;
     root.classList.remove("light", "dark", "tawa");
+    
+    // Clear TAWA theme custom properties if switching away from it
+    if (theme !== "tawa") {
+      root.style.removeProperty("--primary");
+      root.style.removeProperty("--accent");
+    }
     
     if (theme === "dark") {
       root.classList.add("dark");

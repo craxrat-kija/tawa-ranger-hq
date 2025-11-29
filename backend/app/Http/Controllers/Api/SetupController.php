@@ -83,20 +83,12 @@ class SetupController extends Controller
     public function setup(Request $request)
     {
         // Allow multiple admins - each admin gets their own course and isolated data
-        // Check if email already exists
-        $emailExists = User::where('email', $request->adminEmail)->exists();
-        
-        if ($emailExists) {
-            return response()->json([
-                'success' => false,
-                'message' => 'An account with this email already exists. Please use a different email or login.',
-            ], 400);
-        }
+        // Email no longer needs to be unique
 
         $validated = $request->validate([
             // Admin fields
             'adminName' => 'required|string|max:255',
-            'adminEmail' => 'required|string|email|max:255|unique:users,email',
+            'adminEmail' => 'required|string|email|max:255',
             'adminPassword' => 'required|string|min:8',
             'adminPhone' => 'nullable|string',
             'adminDepartment' => 'nullable|string',
@@ -183,11 +175,7 @@ class SetupController extends Controller
                                 continue;
                             }
                             
-                            // Check if email already exists
-                            if (User::where('email', $email)->exists()) {
-                                $errors[] = "Row " . ($i + 1) . ": Email '{$email}' already exists.";
-                                continue;
-                            }
+                            // Email no longer needs to be unique - skip this check
                             
                             // Generate user_id if not provided
                             if (empty($userId)) {

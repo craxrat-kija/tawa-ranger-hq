@@ -17,10 +17,10 @@ class MaterialController extends Controller
         
         $materials = Material::with('uploader');
 
-        // Admins can view all materials across all courses
-        // Only filter by course for non-admin roles
-        if ($currentUser && $currentUser->role === 'admin') {
-            // Regular admins can see all materials
+        // Admins and instructors can view all materials across all courses
+        // Only filter by course for other roles (doctors, trainees)
+        if ($currentUser && in_array($currentUser->role, ['admin', 'instructor'])) {
+            // Admins and instructors can see all materials
             // No course filter applied
         } elseif ($courseId) {
             $materials->where('course_id', $courseId);
@@ -91,15 +91,18 @@ class MaterialController extends Controller
 
     public function show(Request $request, Material $material)
     {
-        // Check if material belongs to the same course
+        // Admins and instructors can access all materials
         $currentUser = $request->user();
         $courseId = CourseHelper::getCurrentCourseId($currentUser);
         
-        if ($courseId && $material->course_id !== $courseId) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Access denied. Material does not belong to your course.',
-            ], 403);
+        // Only check course restriction for non-admin and non-instructor roles
+        if ($currentUser && !in_array($currentUser->role, ['admin', 'instructor', 'super_admin'])) {
+            if ($courseId && $material->course_id !== $courseId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Access denied. Material does not belong to your course.',
+                ], 403);
+            }
         }
         
         return response()->json([
@@ -108,8 +111,22 @@ class MaterialController extends Controller
         ]);
     }
 
-    public function download(Material $material)
+    public function download(Request $request, Material $material)
     {
+        // Admins and instructors can download all materials
+        $currentUser = $request->user();
+        $courseId = CourseHelper::getCurrentCourseId($currentUser);
+        
+        // Only check course restriction for non-admin and non-instructor roles
+        if ($currentUser && !in_array($currentUser->role, ['admin', 'instructor', 'super_admin'])) {
+            if ($courseId && $material->course_id !== $courseId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Access denied. Material does not belong to your course.',
+                ], 403);
+            }
+        }
+        
         if (!Storage::disk('public')->exists($material->file_path)) {
             return response()->json([
                 'success' => false,
@@ -122,15 +139,18 @@ class MaterialController extends Controller
 
     public function destroy(Request $request, Material $material)
     {
-        // Check if material belongs to the same course
+        // Admins and instructors can delete all materials
         $currentUser = $request->user();
         $courseId = CourseHelper::getCurrentCourseId($currentUser);
         
-        if ($courseId && $material->course_id !== $courseId) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Access denied. Material does not belong to your course.',
-            ], 403);
+        // Only check course restriction for non-admin and non-instructor roles
+        if ($currentUser && !in_array($currentUser->role, ['admin', 'instructor', 'super_admin'])) {
+            if ($courseId && $material->course_id !== $courseId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Access denied. Material does not belong to your course.',
+                ], 403);
+            }
         }
         
         Storage::disk('public')->delete($material->file_path);

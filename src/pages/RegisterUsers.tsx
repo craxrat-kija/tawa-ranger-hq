@@ -246,15 +246,29 @@ const RegisterUsers = () => {
       const courseId = selectedCourse ? selectedCourse.id : undefined;
       const result = await usersApi.importFromExcel(excelFile, courseId);
       
-      toast({
-        title: "Success",
-        description: result.message || `Successfully imported ${result.data?.imported || 0} users.`,
-      });
+      const importedCount = result.data?.imported || 0;
+      const hasErrors = result.data?.errors && result.data.errors.length > 0;
+      
+      if (importedCount === 0) {
+        toast({
+          title: "No Users Imported",
+          description: hasErrors 
+            ? `No users were imported. ${result.data.errors.slice(0, 3).join(' ')}`
+            : "No users were imported. Please check your Excel file format and ensure rows are not empty.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Success",
+          description: result.message || `Successfully imported ${importedCount} user(s).${hasErrors ? ` Some errors occurred.` : ''}`,
+        });
+      }
       
       setExcelFile(null);
       setShowExcelDialog(false);
       loadUsers();
     } catch (error: any) {
+      console.error('Excel import error:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to import users from Excel.",
@@ -942,7 +956,7 @@ const RegisterUsers = () => {
                   <div className="space-y-2 col-span-2">
                     <Label htmlFor="course_id">Assign to Course *</Label>
                     <Select 
-                      value={formData.course_id || (selectedCourse ? selectedCourse.id.toString() : "")} 
+                      value={formData.course_id || (selectedCourse ? selectedCourse.id.toString() : undefined)} 
                       onValueChange={(value) => setFormData({ ...formData, course_id: value })}
                       required
                       disabled={!!selectedCourse}
@@ -1113,17 +1127,21 @@ const RegisterUsers = () => {
                 <div className="space-y-2">
                   <Label htmlFor="course-select">Assign to Course {selectedCourse ? "(Selected)" : "(Optional)"}</Label>
                   <Select 
-                    value={selectedCourse?.id.toString() || ""} 
+                    value={selectedCourse?.id.toString() || "none"} 
                     onValueChange={(value) => {
-                      const course = courses.find(c => c.id.toString() === value);
-                      setSelectedCourse(course || null);
+                      if (value === "none") {
+                        setSelectedCourse(null);
+                      } else {
+                        const course = courses.find(c => c.id.toString() === value);
+                        setSelectedCourse(course || null);
+                      }
                     }}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder={selectedCourse ? `Selected: ${selectedCourse.name}` : "Select course (optional)"} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">No specific course</SelectItem>
+                      <SelectItem value="none">No specific course</SelectItem>
                       {courses.map((course) => (
                         <SelectItem key={course.id} value={course.id.toString()}>
                           {course.name} {course.code && `(${course.code})`}

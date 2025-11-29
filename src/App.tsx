@@ -14,7 +14,6 @@ import LandingPage from "./pages/LandingPage";
 import Login from "./pages/Login";
 import SuperAdminLogin from "./pages/SuperAdminLogin";
 import Setup from "./pages/Setup";
-import CreateCourse from "./pages/CreateCourse";
 import AdminDashboard from "./pages/AdminDashboard";
 import InstructorDashboard from "./pages/InstructorDashboard";
 import DoctorDashboard from "./pages/DoctorDashboard";
@@ -54,14 +53,6 @@ const AppContent = () => {
           <Route path="/login" element={<Login />} />
           <Route path="/super-admin/login" element={<SuperAdminLogin />} />
           <Route path="/setup" element={<Setup />} />
-          <Route 
-            path="/create-course" 
-            element={
-              <ProtectedRoute allowedRoles={["super_admin"]}>
-                <CreateCourse />
-              </ProtectedRoute>
-            } 
-          />
           <Route 
             path="/super-admin/*" 
             element={

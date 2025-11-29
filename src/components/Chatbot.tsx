@@ -186,7 +186,6 @@ const getKnowledgeBase = () => {
       - Materials: /instructor/materials
       - Gallery: /instructor/gallery
       - Timetable: /instructor/timetable
-      - Instructors: /instructor/instructors
       - Chat Board: /instructor/chat
       
       ADMIN DASHBOARD:

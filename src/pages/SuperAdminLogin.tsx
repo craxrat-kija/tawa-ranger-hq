@@ -14,6 +14,7 @@ const SuperAdminLogin = () => {
   const [password, setPassword] = useState("");
   const [showCredentials, setShowCredentials] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  
   const { superAdminLogin, user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();

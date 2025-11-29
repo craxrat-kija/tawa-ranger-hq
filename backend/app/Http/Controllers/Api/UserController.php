@@ -19,41 +19,51 @@ use PhpOffice\PhpSpreadsheet\Style\Alignment;
 class UserController extends Controller
 {
     /**
-     * Generate a unique user ID based on course and date
-     * Format: COURSE_CODE-YYYYMMDD-XXX (e.g., TAWA-20241118-001)
+     * Generate a unique user ID with date, course, and number - short format
+     * Format: COURSE_CODE(2) + DATE(MMDD) + ROLE(1) + SEQ(2)
+     * Example: TA1129T01, TR1129I01 (TA course, Nov 29, Trainee #1)
      */
     private function generateUserId($courseId, $role): string
     {
         $course = Course::find($courseId);
-        $courseCode = $course ? strtoupper(substr($course->code ?? $course->name, 0, 4)) : 'TAWA';
         
-        // Get date in YYYYMMDD format
-        $date = date('Ymd');
+        // Get course code (2 uppercase letters max)
+        $courseCode = 'TA';
+        if ($course) {
+            if (!empty($course->code)) {
+                $courseCode = strtoupper(substr($course->code, 0, 2));
+            } elseif (!empty($course->name)) {
+                // Extract first 2 letters from course name
+                $courseCode = strtoupper(substr(preg_replace('/[^A-Za-z]/', '', $course->name), 0, 2));
+            }
+        }
         
-        // Get role prefix
+        // Get date in MMDD format (month and day only)
+        $date = date('md'); // e.g., 1129 for Nov 29
+        
+        // Get role prefix (single letter)
         $rolePrefix = match($role) {
-            'trainee' => 'TR',
-            'instructor' => 'IN',
-            'doctor' => 'DR',
-            'admin' => 'AD',
-            default => 'US',
+            'trainee' => 'T',
+            'instructor' => 'I',
+            'doctor' => 'D',
+            'admin' => 'A',
+            default => 'U',
         };
         
-        // Find the next sequence number for today
+        // Find the next sequence number for this course, role, and date
         $todayUsers = User::where('course_id', $courseId)
-            ->whereDate('created_at', today())
             ->where('role', $role)
+            ->whereDate('created_at', today())
             ->count();
         
-        $sequence = str_pad($todayUsers + 1, 3, '0', STR_PAD_LEFT);
-        
-        $userId = "{$courseCode}-{$date}-{$rolePrefix}{$sequence}";
+        $sequence = $todayUsers + 1;
+        $userId = $courseCode . $date . $rolePrefix . str_pad($sequence, 2, '0', STR_PAD_LEFT);
         
         // Ensure uniqueness
         $counter = 1;
         while (User::where('user_id', $userId)->exists()) {
-            $sequence = str_pad($todayUsers + 1 + $counter, 3, '0', STR_PAD_LEFT);
-            $userId = "{$courseCode}-{$date}-{$rolePrefix}{$sequence}";
+            $sequence = $todayUsers + 1 + $counter;
+            $userId = $courseCode . $date . $rolePrefix . str_pad($sequence, 2, '0', STR_PAD_LEFT);
             $counter++;
         }
         
@@ -145,7 +155,7 @@ class UserController extends Controller
             // First validate basic fields
             $validated = $request->validate([
                 'name' => 'required|string|max:255',
-                'email' => 'required|string|email|max:255|unique:users',
+                'email' => 'required|string|email|max:255',
                 'role' => 'required|in:admin,instructor,doctor,trainee',
                 'phone' => 'nullable|string',
                 'department' => 'nullable|string',
@@ -290,7 +300,7 @@ class UserController extends Controller
             
             $validated = $request->validate([
                 'name' => 'sometimes|string|max:255',
-                'email' => ['sometimes', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
+                'email' => 'sometimes|string|email|max:255',
                 'password' => 'sometimes|string|min:8',
                 'role' => 'sometimes|in:admin,instructor,doctor,trainee',
                 'phone' => 'nullable|string',
@@ -454,18 +464,52 @@ class UserController extends Controller
             
             $importedUsers = 0;
             $errors = [];
+            $totalRows = count($rows);
             
-            // Skip header row (row 1) and example row (row 2)
-            for ($i = 2; $i < count($rows); $i++) {
+            \Log::info('Excel import started', [
+                'total_rows' => $totalRows,
+                'course_id' => $courseId,
+            ]);
+            
+            // Find the first data row (skip header row which typically has "Name" in first column)
+            $startRow = 1; // Default: start from row 2 (index 1) to skip header
+            for ($i = 0; $i < min(3, $totalRows); $i++) {
+                $firstCell = strtolower(trim($rows[$i][0] ?? ''));
+                // If we find "name" in first cell, the next row should be data
+                if ($firstCell === 'name') {
+                    $startRow = $i + 1;
+                    break;
+                }
+            }
+            
+            \Log::info('Excel import - starting from row', ['start_row_index' => $startRow]);
+            
+            // Process rows starting from the detected start row
+            for ($i = $startRow; $i < $totalRows; $i++) {
                 $row = $rows[$i];
                 
-                // Skip empty rows
-                if (empty($row[0]) || empty($row[1])) {
+                // Skip completely empty rows
+                $rowHasData = false;
+                foreach ($row as $cell) {
+                    if (!empty(trim($cell ?? ''))) {
+                        $rowHasData = true;
+                        break;
+                    }
+                }
+                
+                if (!$rowHasData) {
                     continue;
                 }
                 
+                // Skip rows where name or email is missing (required fields)
                 $name = trim($row[0] ?? '');
                 $email = trim($row[1] ?? '');
+                
+                if (empty($name) || empty($email)) {
+                    $errors[] = "Row " . ($i + 1) . ": Missing required fields (Name or Email).";
+                    continue;
+                }
+                
                 $phone = trim($row[2] ?? '');
                 $department = trim($row[3] ?? '');
                 $role = strtolower(trim($row[4] ?? 'trainee'));
@@ -483,11 +527,7 @@ class UserController extends Controller
                     continue;
                 }
                 
-                // Check if email already exists
-                if (User::where('email', $email)->exists()) {
-                    $errors[] = "Row " . ($i + 1) . ": Email '{$email}' already exists.";
-                    continue;
-                }
+                // Email no longer needs to be unique - skip this check
                 
                 // Generate user_id if not provided
                 if (empty($userId)) {
@@ -523,9 +563,27 @@ class UserController extends Controller
                 $importedUsers++;
             }
 
+            \Log::info('Excel import completed', [
+                'imported' => $importedUsers,
+                'errors_count' => count($errors),
+                'total_rows_processed' => $totalRows - $startRow,
+                'start_row_index' => $startRow,
+            ]);
+
+            if ($importedUsers === 0 && empty($errors)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No users were imported. Please check that your Excel file has data rows starting from row 3 (skip header row 1 and example row 2). Ensure Name and Email columns are filled.',
+                    'data' => [
+                        'imported' => 0,
+                        'errors' => ['No valid user data found in the Excel file. Make sure you have data in rows starting from row 3, with Name in column A and Email in column B.'],
+                    ],
+                ], 422);
+            }
+
             $message = "Successfully imported {$importedUsers} user(s).";
             if (!empty($errors)) {
-                $message .= " Errors: " . implode(' ', array_slice($errors, 0, 10)); // Limit to first 10 errors
+                $message .= " " . count($errors) . " error(s) occurred: " . implode('; ', array_slice($errors, 0, 5)); // Limit to first 5 errors
             }
 
             return response()->json([

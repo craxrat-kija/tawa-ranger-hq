@@ -73,7 +73,7 @@ class AuthController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
+            'email' => 'required|string|email|max:255',
             'password' => 'required|string|min:8',
             'role' => 'required|in:admin,instructor,doctor,trainee,super_admin',
             'phone' => 'nullable|string',
@@ -116,9 +116,10 @@ class AuthController extends Controller
         ]);
 
         // Try to find user by user_id first, then fallback to email for backward compatibility
-        $user = User::where('user_id', $request->user_id)
-                    ->orWhere('email', $request->user_id)
-                    ->first();
+        $user = User::where(function($query) use ($request) {
+                    $query->where('user_id', $request->user_id)
+                          ->orWhere('email', $request->user_id);
+                })->first();
 
         if (!$user || !Hash::check($request->password, $user->password)) {
             throw ValidationException::withMessages([
@@ -133,8 +134,10 @@ class AuthController extends Controller
             ]);
         }
 
-        // Load course relationship to get course name
-        $user->load('course');
+        // Load course relationship to get course name (only if course_id exists)
+        if ($user->course_id) {
+            $user->load('course');
+        }
 
         $token = $user->createToken('auth-token')->plainTextToken;
 

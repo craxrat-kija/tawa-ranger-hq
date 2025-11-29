@@ -10,7 +10,6 @@ import { AnimatedCounter } from "@/components/AnimatedCounter";
 import Materials from "./Materials";
 import Gallery from "./Gallery";
 import Timetable from "./Timetable";
-import Instructors from "./Instructors";
 import ChatBoard from "./ChatBoard";
 import ViewTrainees from "./ViewTrainees";
 import Assessments from "./Assessments";
@@ -36,8 +35,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { timetableApi } from "@/lib/api";
+import { timetableApi, coursesApi, usersApi, materialsApi, assessmentsApi, gradesApi } from "@/lib/api";
 import { format } from "date-fns";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 const InstructorDashboard = () => {
   const { logout, user } = useAuth();
@@ -57,7 +57,6 @@ const InstructorDashboard = () => {
     { icon: Upload, label: "Materials", path: "/instructor/materials" },
     { icon: Image, label: "Gallery", path: "/instructor/gallery" },
     { icon: Calendar, label: "Timetable", path: "/instructor/timetable" },
-    { icon: Users, label: "Instructors", path: "/instructor/instructors" },
     { icon: MessageSquare, label: "Chat Board", path: "/instructor/chat" },
     { icon: ClipboardCheck, label: "Assessments", path: "/instructor/assessments" },
     { icon: FileText, label: "Results", path: "/instructor/results" },
@@ -185,7 +184,6 @@ const InstructorDashboard = () => {
             <Route path="/materials" element={<Materials />} />
             <Route path="/gallery" element={<Gallery />} />
             <Route path="/timetable" element={<Timetable />} />
-            <Route path="/instructors" element={<Instructors />} />
             <Route path="/chat" element={<ChatBoard />} />
             <Route path="/assessments" element={<Assessments />} />
             <Route path="/results" element={<Results />} />
@@ -205,10 +203,19 @@ const InstructorHome = () => {
   const navigate = useNavigate();
   const [todaySchedule, setTodaySchedule] = useState<any[]>([]);
   const [isLoadingSchedule, setIsLoadingSchedule] = useState(true);
+  const [stats, setStats] = useState({
+    courses: 0,
+    trainees: 0,
+    materials: 0,
+    pendingReviews: 0,
+  });
+  const [isLoadingStats, setIsLoadingStats] = useState(true);
+  const [chartData, setChartData] = useState<any[]>([]);
 
   useEffect(() => {
     loadTodaySchedule();
-  }, []);
+    loadStats();
+  }, [user]);
 
   const loadTodaySchedule = async () => {
     try {
@@ -222,6 +229,140 @@ const InstructorHome = () => {
       console.error('Error loading today\'s schedule:', error);
     } finally {
       setIsLoadingSchedule(false);
+    }
+  };
+
+  const loadStats = async () => {
+    if (!user?.id) {
+      console.log('No user ID, skipping stats load');
+      return;
+    }
+    
+    try {
+      setIsLoadingStats(true);
+      console.log('Loading stats for instructor:', user.id, user.name);
+      
+      // Initialize stats
+      let coursesCount = 0;
+      let traineesCount = 0;
+      let materialsCount = 0;
+      let pendingReviewsCount = 0;
+      
+      // 1. Get My Courses - courses where instructor_id matches current user
+      let coursesArray: any[] = [];
+      try {
+        const myCoursesResponse = await coursesApi.getAll();
+        coursesArray = Array.isArray(myCoursesResponse) 
+          ? myCoursesResponse 
+          : (myCoursesResponse?.data || []);
+        coursesCount = coursesArray.length;
+        console.log('✓ Courses loaded:', coursesCount, coursesArray);
+        
+        // Prepare chart data: Trainees per course
+        const chartDataArray = [];
+        for (const course of coursesArray) {
+          try {
+            const enrolledUsersResponse = await coursesApi.getEnrolledUsers(course.id.toString());
+            const enrolledUsers = Array.isArray(enrolledUsersResponse) 
+              ? enrolledUsersResponse 
+              : (enrolledUsersResponse?.data || []);
+            const trainees = enrolledUsers.filter((u: any) => u.role === 'trainee');
+            
+            chartDataArray.push({
+              name: course.name?.substring(0, 15) || 'Course',
+              trainees: trainees.length,
+            });
+          } catch (error: any) {
+            console.error(`  ✗ Error loading trainees for chart (course ${course.id}):`, error.message);
+            chartDataArray.push({
+              name: course.name?.substring(0, 15) || 'Course',
+              trainees: 0,
+            });
+          }
+        }
+        setChartData(chartDataArray);
+        console.log('✓ Chart data loaded:', chartDataArray);
+        
+        // 2. Get My Trainees - use same method as /instructor/trainees page
+        try {
+          const traineesData = await usersApi.getAll('trainee');
+          const traineesArray = Array.isArray(traineesData) 
+            ? traineesData 
+            : (traineesData?.data || []);
+          traineesCount = traineesArray.length;
+          console.log('✓ Trainees loaded (same as /instructor/trainees):', traineesCount);
+        } catch (error: any) {
+          console.error('✗ Error loading trainees:', error.message);
+        }
+      } catch (error: any) {
+        console.error('✗ Error loading courses:', error.message);
+      }
+      
+      // 3. Get All Materials - instructors can see all materials in the system
+      try {
+        const allMaterialsResponse = await materialsApi.getAll();
+        const materialsArray = Array.isArray(allMaterialsResponse) 
+          ? allMaterialsResponse 
+          : (allMaterialsResponse?.data || []);
+        
+        // Instructors can see all materials across all courses
+        materialsCount = materialsArray.length;
+        console.log('✓ Materials loaded:', materialsCount, 'total materials in system');
+      } catch (error: any) {
+        console.error('✗ Error loading materials:', error.message);
+      }
+      
+      // 4. Get Pending Reviews - assessments that need grading
+      try {
+        const allAssessmentsResponse = await assessmentsApi.getAll(user.id.toString());
+        const instructorAssessments = Array.isArray(allAssessmentsResponse) 
+          ? allAssessmentsResponse 
+          : (allAssessmentsResponse?.data || []);
+        
+        console.log('✓ Assessments loaded:', instructorAssessments.length);
+        
+        for (const assessment of instructorAssessments) {
+          try {
+            const assessmentGradesResponse = await gradesApi.getAll(assessment.id.toString());
+            const grades = Array.isArray(assessmentGradesResponse) 
+              ? assessmentGradesResponse 
+              : (assessmentGradesResponse?.data || []);
+            
+            if (assessment.course_id) {
+              const enrolledUsersResponse = await coursesApi.getEnrolledUsers(assessment.course_id.toString());
+              const enrolledUsers = Array.isArray(enrolledUsersResponse) 
+                ? enrolledUsersResponse 
+                : (enrolledUsersResponse?.data || []);
+              
+              const trainees = enrolledUsers.filter((u: any) => u.role === 'trainee');
+              const gradedTraineeIds = grades.map((g: any) => g.trainee_id?.toString());
+              const ungradedTrainees = trainees.filter((t: any) => 
+                !gradedTraineeIds.includes(t.id?.toString())
+              );
+              pendingReviewsCount += ungradedTrainees.length;
+            }
+          } catch (error: any) {
+            console.error(`  ✗ Error loading grades for assessment ${assessment.id}:`, error.message);
+          }
+        }
+        console.log('✓ Pending reviews:', pendingReviewsCount);
+      } catch (error: any) {
+        console.error('✗ Error loading assessments:', error.message);
+      }
+      
+      const finalStats = {
+        courses: coursesCount,
+        trainees: traineesCount,
+        materials: materialsCount,
+        pendingReviews: pendingReviewsCount,
+      };
+      
+      console.log('✓ Final stats:', finalStats);
+      setStats(finalStats);
+    } catch (error: any) {
+      console.error('✗ Error loading stats:', error.message, error);
+    } finally {
+      setIsLoadingStats(false);
     }
   };
   
@@ -261,10 +402,33 @@ const InstructorHome = () => {
 
       {/* Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <AnimatedCounter end={0} label="My Courses" icon={BookOpen} delay={0} />
-        <AnimatedCounter end={0} label="My Students" icon={Users} delay={100} />
-        <AnimatedCounter end={0} label="Uploaded Materials" icon={FileText} delay={200} />
-        <AnimatedCounter end={0} label="Pending Reviews" icon={ClipboardCheck} delay={300} />
+        {isLoadingStats ? (
+          <>
+            <div className="bg-card border border-border rounded-xl p-6 animate-pulse">
+              <div className="h-8 bg-muted rounded w-3/4 mb-2"></div>
+              <div className="h-12 bg-muted rounded w-1/2"></div>
+            </div>
+            <div className="bg-card border border-border rounded-xl p-6 animate-pulse">
+              <div className="h-8 bg-muted rounded w-3/4 mb-2"></div>
+              <div className="h-12 bg-muted rounded w-1/2"></div>
+            </div>
+            <div className="bg-card border border-border rounded-xl p-6 animate-pulse">
+              <div className="h-8 bg-muted rounded w-3/4 mb-2"></div>
+              <div className="h-12 bg-muted rounded w-1/2"></div>
+            </div>
+            <div className="bg-card border border-border rounded-xl p-6 animate-pulse">
+              <div className="h-8 bg-muted rounded w-3/4 mb-2"></div>
+              <div className="h-12 bg-muted rounded w-1/2"></div>
+            </div>
+          </>
+        ) : (
+          <>
+            <AnimatedCounter end={stats.courses} label="My Courses" icon={BookOpen} delay={0} />
+            <AnimatedCounter end={stats.trainees} label="My Trainees" icon={Users} delay={100} />
+            <AnimatedCounter end={stats.materials} label="Uploaded Materials" icon={FileText} delay={200} />
+            <AnimatedCounter end={stats.pendingReviews} label="Pending Reviews" icon={ClipboardCheck} delay={300} />
+          </>
+        )}
       </div>
 
       {/* Quick Actions */}
@@ -291,6 +455,44 @@ const InstructorHome = () => {
           ))}
         </div>
       </div>
+
+      {/* Chart Section */}
+      {chartData.length > 0 && (
+        <div className="bg-card border border-border rounded-xl p-6 shadow-lg">
+          <h3 className="text-xl font-semibold text-primary mb-4 flex items-center gap-2">
+            <Users className="w-5 h-5" />
+            Trainees per Course
+          </h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis 
+                dataKey="name" 
+                stroke="#6b7280"
+                angle={-45}
+                textAnchor="end"
+                height={80}
+              />
+              <YAxis stroke="#6b7280" />
+              <Tooltip 
+                contentStyle={{ 
+                  backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '8px'
+                }} 
+              />
+              <Legend />
+              <Bar 
+                dataKey="trainees" 
+                fill="#10b981" 
+                radius={[8, 8, 0, 0]}
+                animationDuration={1500}
+                name="Trainees"
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       {/* Today's Schedule & Recent Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

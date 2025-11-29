@@ -1,11 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import { usersApi } from "@/lib/api";
-import { Eye } from "lucide-react";
+import { Search } from "lucide-react";
 
 interface Trainee {
   id: string;
@@ -22,6 +23,7 @@ const ViewTrainees = () => {
   const { user } = useAuth();
   const [trainees, setTrainees] = useState<Trainee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     loadTrainees();
@@ -57,6 +59,25 @@ const ViewTrainees = () => {
     }
   };
 
+  // Filter trainees based on search query
+  const filteredTrainees = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return trainees;
+    }
+    
+    const query = searchQuery.toLowerCase().trim();
+    return trainees.filter((trainee) => {
+      return (
+        trainee.name.toLowerCase().includes(query) ||
+        trainee.email.toLowerCase().includes(query) ||
+        trainee.phone.toLowerCase().includes(query) ||
+        trainee.department.toLowerCase().includes(query) ||
+        trainee.id.toLowerCase().includes(query) ||
+        (trainee.course && trainee.course.toLowerCase().includes(query))
+      );
+    });
+  }, [trainees, searchQuery]);
+
   const roleDisplay = user?.role === "instructor" ? "Trainees" : user?.role === "doctor" ? "Patients" : "Trainees";
 
   return (
@@ -70,6 +91,17 @@ const ViewTrainees = () => {
             ? "View all trainee health records and information"
             : "View all trainees in the system"}
         </p>
+      </div>
+
+      {/* Search Bar */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-5 h-5" />
+        <Input
+          placeholder="Search trainees by name, email, phone, department, ID, or course..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-10"
+        />
       </div>
 
       <Card>
@@ -99,14 +131,14 @@ const ViewTrainees = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {trainees.length === 0 ? (
+                {filteredTrainees.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                      No trainees found
+                      {searchQuery ? "No trainees found matching your search." : "No trainees found"}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  trainees.map((trainee) => (
+                  filteredTrainees.map((trainee) => (
                 <TableRow key={trainee.id}>
                   <TableCell>
                     <div className="flex items-center gap-3">
@@ -141,8 +173,12 @@ const ViewTrainees = () => {
             <CardTitle className="text-sm font-medium">Total Trainees</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-primary">{trainees.length}</div>
-            <p className="text-xs text-muted-foreground mt-1">All registered trainees</p>
+            <div className="text-3xl font-bold text-primary">
+              {searchQuery ? filteredTrainees.length : trainees.length}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {searchQuery ? "Matching search results" : "All registered trainees"}
+            </p>
           </CardContent>
         </Card>
 
@@ -152,7 +188,7 @@ const ViewTrainees = () => {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-green-600">
-              {trainees.filter(t => t.status === "active").length}
+              {filteredTrainees.filter(t => t.status === "active").length}
             </div>
             <p className="text-xs text-muted-foreground mt-1">Currently enrolled</p>
           </CardContent>
@@ -164,7 +200,7 @@ const ViewTrainees = () => {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-blue-600">
-              {trainees.filter(t => t.status === "completed").length}
+              {filteredTrainees.filter(t => t.status === "completed").length}
             </div>
             <p className="text-xs text-muted-foreground mt-1">Graduated trainees</p>
           </CardContent>

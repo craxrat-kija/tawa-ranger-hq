@@ -17,10 +17,10 @@ class GalleryController extends Controller
         
         $gallery = Gallery::with('uploader');
         
-        // Admins can view all galleries across all courses
-        // Only filter by course for non-admin roles
-        if ($currentUser && $currentUser->role === 'admin') {
-            // Regular admins can see all galleries
+        // Admins and instructors can view all galleries across all courses
+        // Only filter by course for other roles (doctors, trainees)
+        if ($currentUser && in_array($currentUser->role, ['admin', 'instructor'])) {
+            // Admins and instructors can see all galleries
             // No course filter applied
         } elseif ($courseId) {
             $gallery->where('course_id', $courseId);
@@ -90,15 +90,18 @@ class GalleryController extends Controller
 
     public function show(Request $request, Gallery $gallery)
     {
-        // Check if gallery belongs to the same course
+        // Admins and instructors can access all galleries
         $currentUser = $request->user();
         $courseId = CourseHelper::getCurrentCourseId($currentUser);
         
-        if ($courseId && $gallery->course_id !== $courseId) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Access denied. Gallery item does not belong to your course.',
-            ], 403);
+        // Only check course restriction for non-admin and non-instructor roles
+        if ($currentUser && !in_array($currentUser->role, ['admin', 'instructor', 'super_admin'])) {
+            if ($courseId && $gallery->course_id !== $courseId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Access denied. Gallery item does not belong to your course.',
+                ], 403);
+            }
         }
         
         $gallery->load('uploader');
@@ -113,15 +116,18 @@ class GalleryController extends Controller
 
     public function destroy(Request $request, Gallery $gallery)
     {
-        // Check if gallery belongs to the same course
+        // Admins and instructors can delete all galleries
         $currentUser = $request->user();
         $courseId = CourseHelper::getCurrentCourseId($currentUser);
         
-        if ($courseId && $gallery->course_id !== $courseId) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Access denied. Gallery item does not belong to your course.',
-            ], 403);
+        // Only check course restriction for non-admin and non-instructor roles
+        if ($currentUser && !in_array($currentUser->role, ['admin', 'instructor', 'super_admin'])) {
+            if ($courseId && $gallery->course_id !== $courseId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Access denied. Gallery item does not belong to your course.',
+                ], 403);
+            }
         }
         
         Storage::disk('public')->delete($gallery->image_path);

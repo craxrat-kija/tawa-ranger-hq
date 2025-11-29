@@ -24,13 +24,19 @@ class CourseController extends Controller
         }
 
         // Limit admins to their assigned course for isolation
-        if ($user && $user->role !== 'super_admin') {
+        // But allow instructors to see courses where they are the instructor
+        if ($user && $user->role !== 'super_admin' && $user->role !== 'instructor') {
             $courseId = CourseHelper::getCurrentCourseId($user);
             if ($courseId) {
                 $courses->where('id', $courseId);
             } else {
                 $courses->whereRaw('1 = 0');
             }
+        }
+        
+        // For instructors, if no instructor_id is specified, show courses where they are the instructor
+        if ($user && $user->role === 'instructor' && !$request->has('instructor_id')) {
+            $courses->where('instructor_id', $user->id);
         }
 
         $coursesList = $courses->get();
@@ -368,19 +374,29 @@ class CourseController extends Controller
     }
 
     /**
-     * Get enrolled users for a course (Admin only)
+     * Get enrolled users for a course (Admin, Super Admin, and Instructors)
      */
     public function enrolledUsers(Request $request, Course $course)
     {
-        // Check if user is admin or super_admin
-        if ($request->user()->role !== 'admin' && $request->user()->role !== 'super_admin') {
+        $user = $request->user();
+        
+        // Check if user is admin, super_admin, or instructor
+        if (!in_array($user->role, ['admin', 'super_admin', 'instructor'])) {
             return response()->json([
                 'success' => false,
-                'message' => 'Unauthorized. Only admins can view enrolled users.',
+                'message' => 'Unauthorized. Only admins and instructors can view enrolled users.',
             ], 403);
         }
 
-        if (!$this->userCanAccessCourse($request->user(), $course)) {
+        // For instructors, check if they are the instructor of this course
+        if ($user->role === 'instructor') {
+            if ($course->instructor_id !== $user->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized. You are not the instructor of this course.',
+                ], 403);
+            }
+        } elseif (!$this->userCanAccessCourse($user, $course)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Unauthorized. Course does not belong to you.',

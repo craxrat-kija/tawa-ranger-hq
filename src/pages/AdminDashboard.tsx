@@ -18,7 +18,6 @@ import Subjects from "./Subjects";
 import DoctorActivities from "./DoctorActivities";
 import AdminDoctorView from "./AdminDoctorView";
 import Setup from "./Setup";
-import CreateCourse from "./CreateCourse";
 import AdminSettings from "./AdminSettings";
 import {
   Users,
@@ -279,7 +278,6 @@ const AdminDashboard = () => {
     { icon: Users, label: "Dashboard", path: basePath, permission: null }, // Always visible
     ...(isSuperAdmin ? [
       { icon: PlusCircle, label: "Create Course & Admin", path: `${basePath}/setup`, permission: null },
-      { icon: BookOpen, label: "Create Course", path: `${basePath}/create-course`, permission: null },
       { icon: Settings, label: "Admin Settings", path: `${basePath}/settings`, permission: null },
     ] : []),
     { icon: Users, label: "Manage Users", path: `${basePath}/users`, permission: "can_manage_users" },
@@ -433,7 +431,6 @@ const AdminDashboard = () => {
             {isSuperAdmin && (
               <>
                 <Route path="/setup" element={<Setup />} />
-                <Route path="/create-course" element={<CreateCourse />} />
                 <Route path="/settings" element={<AdminSettings />} />
               </>
             )}
