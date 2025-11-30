@@ -115,7 +115,7 @@ const Assessments = () => {
       
       const [assessmentsData, subjectsData, traineesData] = await Promise.all([
         assessmentsApi.getAll(instructorId, undefined, courseId),
-        subjectsApi.getAll(instructorId, undefined, courseId),
+        subjectsApi.getAll(instructorId, courseId),
         usersApi.getAll('trainee'),
       ]);
       
@@ -343,6 +343,14 @@ const Assessments = () => {
         {((user?.role === "admin" || user?.role === "super_admin" || user?.role === "instructor")) && (
           <Button
             onClick={() => {
+              if (!selectedCourse && (!isSuperAdmin || !adminCourseId)) {
+                toast({
+                  title: "Course Selection Required",
+                  description: "Please select a course before creating an assessment.",
+                  variant: "destructive",
+                });
+                return;
+              }
               setSelectedAssessment(null);
               setAssessmentForm({
                 subject_id: "",
@@ -356,6 +364,7 @@ const Assessments = () => {
               setShowAssessmentDialog(true);
             }}
             className="bg-gradient-military"
+            disabled={!selectedCourse && (!isSuperAdmin || !adminCourseId)}
           >
             <Plus className="w-4 h-4 mr-2" />
             Create Assessment
@@ -391,13 +400,14 @@ const Assessments = () => {
                   <Select
                     value={assessmentForm.subject_id}
                     onValueChange={(value) => setAssessmentForm({ ...assessmentForm, subject_id: value })}
+                    disabled={subjects.length === 0}
                   >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select subject" />
+                    <SelectTrigger id="subject-select">
+                      <SelectValue placeholder={subjects.length === 0 ? "Loading subjects..." : "Select subject"} />
                     </SelectTrigger>
                     <SelectContent>
                       {subjects.map((subject) => (
-                        <SelectItem key={subject.id} value={subject.id.toString()}>
+                        <SelectItem key={subject.id} value={String(subject.id)}>
                           {subject.name} {subject.code && `(${subject.code})`}
                         </SelectItem>
                       ))}

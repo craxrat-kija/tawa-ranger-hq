@@ -8,7 +8,7 @@ import { Upload, Download, FileText, Video, Image, File, Search, Trash2 } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { materialsApi } from "@/lib/api";
+import { materialsApi, coursesApi } from "@/lib/api";
 
 interface MaterialItem {
   id: number;
@@ -25,6 +25,9 @@ const Materials = () => {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSubject, setSelectedSubject] = useState("all");
+  const [selectedCourse, setSelectedCourse] = useState<string>("");
+  const [courses, setCourses] = useState<any[]>([]);
+  const [loadingCourses, setLoadingCourses] = useState(true);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -38,20 +41,62 @@ const Materials = () => {
   const [materials, setMaterials] = useState<MaterialItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  const isSuperAdmin = user?.role === "super_admin";
+  const adminCourseId = user?.course_id;
+
+  // Load courses on mount
   useEffect(() => {
-    if (user?.course_id) {
+    const loadCourses = async () => {
+      try {
+        setLoadingCourses(true);
+        const coursesData = await coursesApi.getAll().catch(() => []);
+        const coursesArray = Array.isArray(coursesData) ? coursesData : [];
+        
+        // For regular admins, filter to only their course
+        if (!isSuperAdmin && adminCourseId) {
+          const filteredCourses = coursesArray.filter((c: any) => c.id === adminCourseId);
+          setCourses(filteredCourses);
+          // Auto-select the admin's course
+          if (filteredCourses.length > 0) {
+            setSelectedCourse(String(filteredCourses[0].id));
+          }
+        } else {
+          setCourses(coursesArray);
+        }
+      } catch (error) {
+        console.error("Error loading courses:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load courses. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoadingCourses(false);
+      }
+    };
+
+    loadCourses();
+  }, [isSuperAdmin, adminCourseId, toast]);
+
+  useEffect(() => {
+    if (selectedCourse || (!isSuperAdmin && adminCourseId)) {
       loadMaterials();
     }
-  }, [selectedSubject, searchQuery, user?.course_id]);
+  }, [selectedSubject, searchQuery, selectedCourse, adminCourseId]);
 
   const loadMaterials = async () => {
+    if (!selectedCourse && (!isSuperAdmin || !adminCourseId)) {
+      return;
+    }
+
     try {
       setIsLoading(true);
+      const courseId = selectedCourse ? Number(selectedCourse) : (adminCourseId ? Number(adminCourseId) : undefined);
       const data = await materialsApi.getAll(
         selectedSubject !== "all" ? selectedSubject : undefined,
         undefined,
         searchQuery || undefined,
-        user?.course_id || undefined
+        courseId
       );
       const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
       setMaterials(data.map((m: any) => ({
@@ -163,18 +208,24 @@ const Materials = () => {
       return;
     }
 
+    const courseId = selectedCourse ? Number(selectedCourse) : (adminCourseId ? Number(adminCourseId) : undefined);
+    if (!courseId) {
+      toast({
+        title: "Course Required",
+        description: "Please select a course before uploading a material",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setUploading(true);
     
     try {
-      if (!user?.course_id) {
-        throw new Error("Course ID is missing. Please ensure you are assigned to a course.");
-      }
-      
       await materialsApi.create(
         uploadData.file,
         materialName,
         uploadData.subject,
-        user.course_id
+        courseId
       );
       
       setShowUploadDialog(false);
@@ -241,6 +292,40 @@ const Materials = () => {
 
   return (
     <div className="space-y-6">
+      {/* Course Selection */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Select Course</CardTitle>
+          <CardDescription>Choose a course to view materials</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            <Label htmlFor="course-select">Course</Label>
+            <Select
+              value={selectedCourse}
+              onValueChange={setSelectedCourse}
+              disabled={loadingCourses}
+            >
+              <SelectTrigger id="course-select" className="w-full">
+                <SelectValue placeholder={loadingCourses ? "Loading courses..." : "Select a course"} />
+              </SelectTrigger>
+              <SelectContent>
+                {courses.map((course: any) => (
+                  <SelectItem key={course.id} value={String(course.id)}>
+                    {course.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {!selectedCourse && !adminCourseId && (
+              <p className="text-sm text-muted-foreground">
+                Please select a course to view materials.
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-primary">Training Materials</h1>
         {((user?.role === "admin" || user?.role === "super_admin" || user?.role === "instructor")) && (
