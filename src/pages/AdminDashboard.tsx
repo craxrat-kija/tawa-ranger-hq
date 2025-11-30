@@ -1,6 +1,7 @@
 import { Routes, Route, Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { RotatingLogo } from "@/components/RotatingLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Chatbot } from "@/components/Chatbot";
@@ -47,6 +48,9 @@ import {
   Settings,
   FileBarChart,
   Download,
+  Box,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -57,6 +61,13 @@ const AdminDashboard = () => {
   const { logout, user } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [openDropdowns, setOpenDropdowns] = useState<Record<string, boolean>>({
+    administration: false,
+    academic: false,
+    reports: false,
+    assessments: false,
+    medical: false,
+  });
   const [stats, setStats] = useState({
     instructors: 0,
     trainees: 0,
@@ -278,35 +289,107 @@ const AdminDashboard = () => {
   // Determine base path based on role
   const basePath = isSuperAdmin ? "/super-admin" : "/admin";
 
-  // Build menu items based on permissions
-  const menuItems = [
-    { icon: Users, label: "Dashboard", path: basePath, permission: null }, // Always visible
-    ...(isSuperAdmin ? [
-      { icon: PlusCircle, label: "Create Course & Admin", path: `${basePath}/setup`, permission: null },
-      { icon: Settings, label: "Admin Settings", path: `${basePath}/settings`, permission: null },
-      { icon: FileBarChart, label: "System Report", path: `${basePath}/system-report`, permission: null },
-    ] : [
-      { icon: FileBarChart, label: "Course Report", path: `${basePath}/system-report`, permission: "can_manage_reports" },
-    ]),
-    { icon: Users, label: "Manage Users", path: `${basePath}/users`, permission: "can_manage_users" },
-    { icon: BookOpen, label: "Subjects", path: `${basePath}/subjects`, permission: "can_manage_subjects" },
-    { icon: Upload, label: "Materials", path: `${basePath}/materials`, permission: "can_manage_materials" },
-    { icon: Image, label: "Gallery", path: `${basePath}/gallery`, permission: "can_manage_gallery" },
-    { icon: Calendar, label: "Timetable", path: `${basePath}/timetable`, permission: "can_manage_timetable" },
-    { icon: FileText, label: "Reports", path: `${basePath}/reports`, permission: "can_manage_reports" },
-    { icon: MessageSquare, label: "Chat Board", path: `${basePath}/chat`, permission: "can_manage_chat" },
-    { icon: ClipboardCheck, label: "Assessments", path: `${basePath}/assessments`, permission: "can_manage_assessments" },
-    { icon: FileText, label: "Results", path: `${basePath}/results`, permission: "can_manage_results" },
-    { icon: Activity, label: "Doctor Activities", path: `${basePath}/activities`, permission: "can_manage_activities" },
-    { icon: Stethoscope, label: "Doctor Dashboard View", path: `${basePath}/doctor-view`, permission: "can_view_doctor_dashboard" },
-  ].filter(item => {
-    // Super admins see all items
+  // Toggle dropdown
+  const toggleDropdown = (key: string) => {
+    setOpenDropdowns(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  // Helper function to check if item should be visible
+  const shouldShowItem = (permission: string | null) => {
     if (isSuperAdmin) return true;
-    // Regular admins only see items they have permission for
-    if (item.permission === null) return true; // Always visible items (Dashboard)
-    // Don't show items if permissions are still loading
+    if (permission === null) return true;
     if (permissionsLoading || !permissions) return false;
-    return permissions[item.permission as keyof typeof permissions] === true;
+    return permissions[permission as keyof typeof permissions] === true;
+  };
+
+  // Build menu structure with groups - reorganized for better UX
+  const menuGroups = [
+    // Dashboard (always first, no dropdown)
+    {
+      type: "single",
+      item: { icon: Users, label: "Dashboard", path: basePath, permission: null },
+      separator: false
+    },
+    // Academic Group - Most frequently used, placed early
+    {
+      type: "group",
+      key: "academic",
+      icon: BookOpen,
+      label: "Academic Management",
+      items: [
+        { icon: BookOpen, label: "Subjects", path: `${basePath}/subjects`, permission: "can_manage_subjects" },
+        { icon: Calendar, label: "Timetable", path: `${basePath}/timetable`, permission: "can_manage_timetable" },
+        { icon: Upload, label: "Materials", path: `${basePath}/materials`, permission: "can_manage_materials" },
+        { icon: Image, label: "Gallery", path: `${basePath}/gallery`, permission: "can_manage_gallery" },
+      ].filter(item => shouldShowItem(item.permission)),
+      separator: true
+    },
+    // Assessments & Results Group
+    {
+      type: "group",
+      key: "assessments",
+      icon: ClipboardCheck,
+      label: "Assessments & Results",
+      items: [
+        { icon: ClipboardCheck, label: "Assessments", path: `${basePath}/assessments`, permission: "can_manage_assessments" },
+        { icon: FileText, label: "Results", path: `${basePath}/results`, permission: "can_manage_results" },
+      ].filter(item => shouldShowItem(item.permission)),
+      separator: false
+    },
+    // Reports & Analytics Group
+    {
+      type: "group",
+      key: "reports",
+      icon: Box,
+      label: "Reports & Analytics",
+      items: [
+        { icon: Box, label: "Reports", path: `${basePath}/reports`, permission: "can_manage_reports" },
+        ...(isSuperAdmin ? [
+          { icon: FileBarChart, label: "System Report", path: `${basePath}/system-report`, permission: null },
+        ] : [
+          { icon: FileBarChart, label: "Course Report", path: `${basePath}/system-report`, permission: "can_manage_reports" },
+        ]),
+      ].filter(item => shouldShowItem(item.permission)),
+      separator: true
+    },
+    // Communication (single item)
+    {
+      type: "single",
+      item: { icon: MessageSquare, label: "Chat Board", path: `${basePath}/chat`, permission: "can_manage_chat" },
+      separator: false
+    },
+    // Administration Group
+    {
+      type: "group",
+      key: "administration",
+      icon: Settings,
+      label: "Administration",
+      items: [
+        { icon: Users, label: "Manage Users", path: `${basePath}/users`, permission: "can_manage_users" },
+        ...(isSuperAdmin ? [
+          { icon: PlusCircle, label: "Create Course & Admin", path: `${basePath}/setup`, permission: null },
+          { icon: Settings, label: "Admin Settings", path: `${basePath}/settings`, permission: null },
+        ] : []),
+      ].filter(item => shouldShowItem(item.permission)),
+      separator: true
+    },
+    // Medical Group
+    {
+      type: "group",
+      key: "medical",
+      icon: Stethoscope,
+      label: "Medical",
+      items: [
+        { icon: Activity, label: "Doctor Activities", path: `${basePath}/activities`, permission: "can_manage_activities" },
+        { icon: Stethoscope, label: "Doctor Dashboard View", path: `${basePath}/doctor-view`, permission: "can_view_doctor_dashboard" },
+      ].filter(item => shouldShowItem(item.permission)),
+      separator: false
+    },
+  ].filter(group => {
+    if (group.type === "single") {
+      return shouldShowItem(group.item.permission);
+    }
+    return group.items.length > 0;
   });
 
   return (
@@ -332,17 +415,74 @@ const AdminDashboard = () => {
           </div>
 
           {/* Menu Items */}
-          <nav className="flex-1 overflow-y-auto p-4 space-y-2">
-            {menuItems.map((item, idx) => (
-              <Link
-                key={idx}
-                to={item.path}
-                className="flex items-center gap-3 px-4 py-3 text-white hover:bg-gradient-to-r hover:from-[hsl(120,45%,32%)] hover:via-[hsl(45,40%,38%)] hover:to-[hsl(30,45%,28%)] hover:shadow-lg rounded-lg transition-all group border border-transparent hover:border-[hsl(45,50%,45%)]/40"
-              >
-                <item.icon className="w-6 h-6 group-hover:scale-110 transition-transform" />
-                <span className="font-medium text-base">{item.label}</span>
-              </Link>
-            ))}
+          <nav className="flex-1 overflow-y-auto p-4 space-y-2 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+            {menuGroups.map((group, idx) => {
+              // Add separator before group if needed
+              const showSeparator = group.separator && idx > 0;
+              
+              if (group.type === "single") {
+                return (
+                  <div key={idx}>
+                    {showSeparator && (
+                      <div className="my-2 mx-2 border-t border-white/10"></div>
+                    )}
+                    <Link
+                      to={group.item.path}
+                      className="flex items-center gap-3 px-4 py-2.5 text-white hover:bg-gradient-to-r hover:from-[hsl(120,45%,32%)] hover:via-[hsl(45,40%,38%)] hover:to-[hsl(30,45%,28%)] hover:shadow-lg rounded-lg transition-all group border border-transparent hover:border-[hsl(45,50%,45%)]/40 active:scale-[0.98]"
+                    >
+                      <group.item.icon className="w-5 h-5 group-hover:scale-110 transition-transform flex-shrink-0" />
+                      <span className="font-medium text-sm">{group.item.label}</span>
+                    </Link>
+                  </div>
+                );
+              }
+
+              // Collapsible group
+              const isOpen = openDropdowns[group.key];
+              const GroupIcon = group.icon;
+              
+              return (
+                <div key={idx}>
+                  {showSeparator && (
+                    <div className="my-2 mx-2 border-t border-white/10"></div>
+                  )}
+                  <Collapsible
+                    open={isOpen}
+                    onOpenChange={() => toggleDropdown(group.key)}
+                  >
+                    <CollapsibleTrigger className="w-full">
+                      <div className="flex items-center justify-between gap-3 px-4 py-2.5 text-white hover:bg-gradient-to-r hover:from-[hsl(120,45%,32%)] hover:via-[hsl(45,40%,38%)] hover:to-[hsl(30,45%,28%)] hover:shadow-lg rounded-lg transition-all group border border-transparent hover:border-[hsl(45,50%,45%)]/40 active:scale-[0.98]">
+                        <div className="flex items-center gap-3">
+                          <GroupIcon className="w-5 h-5 group-hover:scale-110 transition-transform flex-shrink-0" />
+                          <span className="font-medium text-sm">{group.label}</span>
+                        </div>
+                        <div className="flex items-center">
+                          {isOpen ? (
+                            <ChevronDown className="w-4 h-4 transition-transform duration-200 text-white/70" />
+                          ) : (
+                            <ChevronRight className="w-4 h-4 transition-transform duration-200 text-white/70" />
+                          )}
+                        </div>
+                      </div>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="overflow-hidden transition-all duration-200 ease-in-out">
+                      <div className="ml-6 mt-1.5 space-y-1 border-l-2 border-white/15 pl-4 py-1">
+                        {group.items.map((item, itemIdx) => (
+                          <Link
+                            key={itemIdx}
+                            to={item.path}
+                            className="flex items-center gap-2.5 px-3 py-1.5 text-white/80 hover:text-white hover:bg-white/10 rounded-md transition-all group border border-transparent hover:border-white/15 active:scale-[0.98]"
+                          >
+                            <item.icon className="w-4 h-4 group-hover:scale-110 transition-transform flex-shrink-0" />
+                            <span className="font-medium text-xs">{item.label}</span>
+                          </Link>
+                        ))}
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                </div>
+              );
+            })}
           </nav>
 
           {/* User Section */}
@@ -463,39 +603,39 @@ const AdminDashboard = () => {
             {/* Protected routes - only accessible if admin has permission or is super admin */}
             {hasPermission("can_manage_users") && (
               <>
-                <Route path="/users" element={<RegisterUsers />} />
+            <Route path="/users" element={<RegisterUsers />} />
                 <Route path="/trainees" element={<RegisterUsers />} />
               </>
             )}
             {hasPermission("can_manage_subjects") && (
-              <Route path="/subjects" element={<Subjects />} />
+            <Route path="/subjects" element={<Subjects />} />
             )}
             {hasPermission("can_manage_materials") && (
-              <Route path="/materials" element={<Materials />} />
+            <Route path="/materials" element={<Materials />} />
             )}
             {hasPermission("can_manage_gallery") && (
-              <Route path="/gallery" element={<Gallery />} />
+            <Route path="/gallery" element={<Gallery />} />
             )}
             {hasPermission("can_manage_timetable") && (
-              <Route path="/timetable" element={<Timetable />} />
+            <Route path="/timetable" element={<Timetable />} />
             )}
             {(isSuperAdmin || hasPermission("can_manage_reports")) && (
-              <Route path="/reports" element={<Reports />} />
+            <Route path="/reports" element={<Reports />} />
             )}
             {hasPermission("can_manage_chat") && (
-              <Route path="/chat" element={<ChatBoard />} />
+            <Route path="/chat" element={<ChatBoard />} />
             )}
             {hasPermission("can_manage_assessments") && (
-              <Route path="/assessments" element={<Assessments />} />
+            <Route path="/assessments" element={<Assessments />} />
             )}
             {hasPermission("can_manage_results") && (
-              <Route path="/results" element={<Results />} />
+            <Route path="/results" element={<Results />} />
             )}
             {hasPermission("can_manage_activities") && (
-              <Route path="/activities" element={<DoctorActivities />} />
+            <Route path="/activities" element={<DoctorActivities />} />
             )}
             {hasPermission("can_view_doctor_dashboard") && (
-              <Route path="/doctor-view" element={<AdminDoctorView />} />
+            <Route path="/doctor-view" element={<AdminDoctorView />} />
             )}
             {/* Redirect unauthorized access attempts */}
             <Route path="*" element={
@@ -643,10 +783,10 @@ const DashboardHome = ({ stats, statsLoading, user, isSuperAdmin, basePath }: { 
           <div>
             <h2 className="text-4xl font-bold text-primary mb-2">
               Welcome back, {user?.name?.split(' ')[0]}! 👋
-            </h2>
+        </h2>
             <p className="text-muted-foreground text-lg">
               {isSuperAdmin ? "Full system overview and management" : "Manage your training programs with precision"}
-            </p>
+          </p>
           </div>
           {user?.course_name && (
             <div className="flex items-center gap-2 px-4 py-2 bg-primary/20 rounded-xl border border-primary/30 backdrop-blur-sm">
@@ -888,7 +1028,7 @@ const DashboardHome = ({ stats, statsLoading, user, isSuperAdmin, basePath }: { 
             { icon: BookOpen, label: "Manage Courses", color: "bg-green-500" },
             { icon: Upload, label: "Upload Materials", color: "bg-purple-500" },
             { icon: Calendar, label: "Create Timetable", color: "bg-orange-500" },
-            { icon: FileText, label: "Generate Reports", color: "bg-red-500" },
+            { icon: Box, label: "Generate Reports", color: "bg-red-500" },
             { icon: Image, label: "Manage Gallery", color: "bg-pink-500" },
           ].map((action, idx) => (
             <button

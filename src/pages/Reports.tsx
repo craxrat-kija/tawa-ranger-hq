@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, Download, TrendingUp, Users, Award, Loader2, BookOpen, Upload, Image, Calendar, Stethoscope, FileHeart, MessageSquare, Database, BarChart } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { FileText, Download, TrendingUp, Users, Award, Loader2, BookOpen, Upload, Image, Calendar, Stethoscope, FileHeart, MessageSquare, Database, BarChart, Box } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { 
@@ -24,9 +26,45 @@ const Reports = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const [generating, setGenerating] = useState<number | null>(null);
+  const [selectedCourse, setSelectedCourse] = useState<string>("");
+  const [courses, setCourses] = useState<any[]>([]);
+  const [loadingCourses, setLoadingCourses] = useState(true);
   
   const isSuperAdmin = user?.role === "super_admin";
   const adminCourseId = user?.course_id;
+
+  useEffect(() => {
+    const loadCourses = async () => {
+      try {
+        setLoadingCourses(true);
+        const coursesData = await coursesApi.getAll().catch(() => []);
+        const coursesArray = Array.isArray(coursesData) ? coursesData : [];
+        
+        // For regular admins, filter to only their course
+        if (!isSuperAdmin && adminCourseId) {
+          const filteredCourses = coursesArray.filter((c: any) => c.id === adminCourseId);
+          setCourses(filteredCourses);
+          // Auto-select the admin's course
+          if (filteredCourses.length > 0) {
+            setSelectedCourse(String(filteredCourses[0].id));
+          }
+        } else {
+          setCourses(coursesArray);
+        }
+      } catch (error) {
+        console.error("Error loading courses:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load courses. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoadingCourses(false);
+      }
+    };
+
+    loadCourses();
+  }, [isSuperAdmin, adminCourseId, toast]);
 
   const reportTypes = [
     { 
@@ -57,6 +95,13 @@ const Reports = () => {
       icon: FileText,
       color: "text-purple-500"
     },
+    { 
+      id: 16, 
+      title: "Results Report", 
+      description: "All grades and trainee results",
+      icon: FileText,
+      color: "text-lime-500"
+    },
     // Super Admin Only Reports
     ...(isSuperAdmin ? [
       { 
@@ -84,7 +129,7 @@ const Reports = () => {
         id: 8, 
         title: "Materials Report", 
         description: "All training materials and resource distribution",
-        icon: Upload,
+        icon: Box,
         color: "text-orange-500"
       },
       { 
@@ -142,9 +187,12 @@ const Reports = () => {
   const generatePerformanceReport = async () => {
     setGenerating(1);
     try {
+      const courseId = selectedCourse ? Number(selectedCourse) : undefined;
+      const courseName = selectedCourse ? courses.find((c: any) => String(c.id) === selectedCourse)?.name : undefined;
+      
       // Fetch grades and assessments
       const [grades, assessments, trainees] = await Promise.all([
-        gradesApi.getAll(undefined, undefined, undefined, adminCourseId || undefined).catch(() => []),
+        gradesApi.getAll(undefined, undefined, undefined, courseId).catch(() => []),
         assessmentsApi.getAll().catch(() => []),
         usersApi.getAll().catch(() => []),
       ]);
@@ -153,16 +201,16 @@ const Reports = () => {
       const assessmentsArray = Array.isArray(assessments) ? assessments : [];
       const traineesArray = Array.isArray(trainees) ? trainees : [];
 
-      // Filter by course for regular admins
+      // Filter by course
       let filteredGrades = gradesArray;
       let filteredAssessments = assessmentsArray;
       let filteredTrainees = traineesArray;
 
-      if (!isSuperAdmin && adminCourseId) {
-        filteredTrainees = traineesArray.filter((t: any) => t.course_id === adminCourseId && t.role === "trainee");
-        filteredGrades = gradesArray.filter((g: any) => g.course_id === adminCourseId);
-        filteredAssessments = assessmentsArray.filter((a: any) => a.course_id === adminCourseId);
-      } else if (!isSuperAdmin) {
+      if (courseId) {
+        filteredTrainees = traineesArray.filter((t: any) => t.course_id === courseId && t.role === "trainee");
+        filteredGrades = gradesArray.filter((g: any) => g.course_id === courseId);
+        filteredAssessments = assessmentsArray.filter((a: any) => a.course_id === courseId);
+      } else {
         filteredTrainees = traineesArray.filter((t: any) => t.role === "trainee");
       }
 
@@ -204,7 +252,7 @@ const Reports = () => {
 <body>
   <h1>Performance Report</h1>
   <p>Generated on: ${format(new Date(), "MMMM dd, yyyy 'at' HH:mm:ss")}</p>
-  ${!isSuperAdmin && user?.course_name ? `<p>Course: ${user.course_name}</p>` : ''}
+  ${courseName ? `<p>Course: ${courseName}</p>` : ''}
   
   <div class="summary">
     <h2>Summary</h2>
@@ -268,6 +316,9 @@ const Reports = () => {
   const generateAttendanceReport = async () => {
     setGenerating(2);
     try {
+      const courseId = selectedCourse ? Number(selectedCourse) : undefined;
+      const courseName = selectedCourse ? courses.find((c: any) => String(c.id) === selectedCourse)?.name : undefined;
+      
       const [attendance, trainees] = await Promise.all([
         attendanceApi.getAll().catch(() => []),
         usersApi.getAll().catch(() => []),
@@ -276,8 +327,8 @@ const Reports = () => {
       let filteredAttendance = Array.isArray(attendance) ? attendance : [];
       let filteredTrainees = Array.isArray(trainees) ? trainees.filter((t: any) => t.role === "trainee") : [];
 
-      if (!isSuperAdmin && adminCourseId) {
-        filteredTrainees = filteredTrainees.filter((t: any) => t.course_id === adminCourseId);
+      if (courseId) {
+        filteredTrainees = filteredTrainees.filter((t: any) => t.course_id === courseId);
         const traineeIds = new Set(filteredTrainees.map((t: any) => t.id));
         filteredAttendance = filteredAttendance.filter((a: any) => traineeIds.has(a.patient_id));
       }
@@ -310,7 +361,7 @@ const Reports = () => {
 <body>
   <h1>Attendance Report</h1>
   <p>Generated on: ${format(new Date(), "MMMM dd, yyyy 'at' HH:mm:ss")}</p>
-  ${!isSuperAdmin && user?.course_name ? `<p>Course: ${user.course_name}</p>` : ''}
+  ${courseName ? `<p>Course: ${courseName}</p>` : ''}
   
   <div class="summary">
     <h2>Summary</h2>
@@ -370,23 +421,25 @@ const Reports = () => {
   const generateCourseCompletionReport = async () => {
     setGenerating(3);
     try {
-      const [courses, trainees, assessments, grades] = await Promise.all([
+      const courseId = selectedCourse ? Number(selectedCourse) : undefined;
+      
+      const [coursesData, trainees, assessments, grades] = await Promise.all([
         coursesApi.getAll().catch(() => []),
         usersApi.getAll().catch(() => []),
         assessmentsApi.getAll().catch(() => []),
         gradesApi.getAll().catch(() => []),
       ]);
 
-      let filteredCourses = Array.isArray(courses) ? courses : [];
+      let filteredCourses = Array.isArray(coursesData) ? coursesData : [];
       let filteredTrainees = Array.isArray(trainees) ? trainees.filter((t: any) => t.role === "trainee") : [];
       let filteredAssessments = Array.isArray(assessments) ? assessments : [];
       let filteredGrades = Array.isArray(grades) ? grades : [];
 
-      if (!isSuperAdmin && adminCourseId) {
-        filteredCourses = filteredCourses.filter((c: any) => c.id === adminCourseId);
-        filteredTrainees = filteredTrainees.filter((t: any) => t.course_id === adminCourseId);
-        filteredAssessments = filteredAssessments.filter((a: any) => a.course_id === adminCourseId);
-        filteredGrades = filteredGrades.filter((g: any) => g.course_id === adminCourseId);
+      if (courseId) {
+        filteredCourses = filteredCourses.filter((c: any) => c.id === courseId);
+        filteredTrainees = filteredTrainees.filter((t: any) => t.course_id === courseId);
+        filteredAssessments = filteredAssessments.filter((a: any) => a.course_id === courseId);
+        filteredGrades = filteredGrades.filter((g: any) => g.course_id === courseId);
       }
 
       const courseStats = filteredCourses.map((course: any) => {
@@ -479,6 +532,9 @@ const Reports = () => {
   const generateInstructorReport = async () => {
     setGenerating(4);
     try {
+      const courseId = selectedCourse ? Number(selectedCourse) : undefined;
+      const courseName = selectedCourse ? courses.find((c: any) => String(c.id) === selectedCourse)?.name : undefined;
+      
       const [instructors, assessments, grades] = await Promise.all([
         usersApi.getAll().catch(() => []),
         assessmentsApi.getAll().catch(() => []),
@@ -489,10 +545,10 @@ const Reports = () => {
       let filteredAssessments = Array.isArray(assessments) ? assessments : [];
       let filteredGrades = Array.isArray(grades) ? grades : [];
 
-      if (!isSuperAdmin && adminCourseId) {
-        filteredInstructors = filteredInstructors.filter((i: any) => i.course_id === adminCourseId);
-        filteredAssessments = filteredAssessments.filter((a: any) => a.course_id === adminCourseId);
-        filteredGrades = filteredGrades.filter((g: any) => g.course_id === adminCourseId);
+      if (courseId) {
+        filteredInstructors = filteredInstructors.filter((i: any) => i.course_id === courseId);
+        filteredAssessments = filteredAssessments.filter((a: any) => a.course_id === courseId);
+        filteredGrades = filteredGrades.filter((g: any) => g.course_id === courseId);
       }
 
       const instructorStats = filteredInstructors.map((instructor: any) => {
@@ -530,7 +586,7 @@ const Reports = () => {
 <body>
   <h1>Instructor Performance Report</h1>
   <p>Generated on: ${format(new Date(), "MMMM dd, yyyy 'at' HH:mm:ss")}</p>
-  ${!isSuperAdmin && user?.course_name ? `<p>Course: ${user.course_name}</p>` : ''}
+  ${courseName ? `<p>Course: ${courseName}</p>` : ''}
   
   <h2>Instructor Statistics</h2>
   <table>
@@ -1226,7 +1282,191 @@ const Reports = () => {
     }
   };
 
+  const generateResultsReport = async () => {
+    setGenerating(16);
+    try {
+      const courseId = selectedCourse ? Number(selectedCourse) : undefined;
+      const courseName = selectedCourse ? courses.find((c: any) => String(c.id) === selectedCourse)?.name : undefined;
+      
+      const [grades, trainees, assessments] = await Promise.all([
+        gradesApi.getAll(undefined, undefined, undefined, courseId).catch(() => []),
+        usersApi.getAll().catch(() => []),
+        assessmentsApi.getAll(undefined, undefined, courseId).catch(() => []),
+      ]);
+
+      const gradesArray = Array.isArray(grades) ? grades : [];
+      const traineesArray = Array.isArray(trainees) ? trainees.filter((t: any) => t.role === "trainee") : [];
+      const assessmentsArray = Array.isArray(assessments) ? assessments : [];
+
+      // Filter trainees by course if course is selected
+      let filteredTrainees = traineesArray;
+      let filteredGrades = gradesArray;
+      let filteredAssessments = assessmentsArray;
+
+      if (courseId) {
+        filteredTrainees = traineesArray.filter((t: any) => t.course_id === courseId);
+        filteredGrades = gradesArray.filter((g: any) => {
+          const assessment = assessmentsArray.find((a: any) => a.id === g.assessment_id);
+          return assessment && assessment.course_id === courseId;
+        });
+      }
+
+      // Group grades by trainee
+      const traineeResults = filteredTrainees.map((trainee: any) => {
+        const traineeGrades = filteredGrades.filter((g: any) => g.trainee_id === trainee.id);
+        const totalScore = traineeGrades.reduce((sum: number, g: any) => {
+          const score = typeof g.score === 'number' ? g.score : parseFloat(g.score) || 0;
+          return sum + score;
+        }, 0);
+        const maxScore = traineeGrades.reduce((sum: number, g: any) => {
+          const assessment = filteredAssessments.find((a: any) => a.id === g.assessment_id);
+          const max = typeof assessment?.max_score === 'number' ? assessment.max_score : parseFloat(assessment?.max_score) || 100;
+          return sum + max;
+        }, 0);
+        const average = maxScore > 0 ? (totalScore / maxScore) * 100 : 0;
+
+        return {
+          name: trainee.name,
+          user_id: trainee.user_id,
+          totalAssessments: traineeGrades.length,
+          totalScore: totalScore.toFixed(2),
+          maxScore: maxScore.toFixed(2),
+          average: average.toFixed(2),
+          grades: traineeGrades,
+        };
+      });
+
+      const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>TAWA Results Report - ${format(new Date(), "yyyy-MM-dd")}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
+    .header { text-align: center; border-bottom: 3px solid #22c55e; padding-bottom: 20px; margin-bottom: 30px; }
+    .header h1 { color: #22c55e; margin: 0; }
+    .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 20px 0; }
+    .summary-card { background: #f0fdf4; border: 1px solid #22c55e; border-radius: 8px; padding: 15px; text-align: center; }
+    .summary-card h3 { margin: 0 0 10px 0; color: #22c55e; font-size: 14px; }
+    .summary-card .value { font-size: 32px; font-weight: bold; color: #15803d; }
+    table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+    th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+    th { background-color: #22c55e; color: white; font-weight: bold; }
+    tr:nth-child(even) { background-color: #f9fafb; }
+    .grade-detail { margin-top: 10px; padding: 10px; background: #f0f9ff; border-radius: 5px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>TAWA Results Report</h1>
+    <p>Generated on: ${format(new Date(), "MMMM dd, yyyy 'at' HH:mm:ss")}</p>
+    ${courseName ? `<p><strong>Course:</strong> ${courseName}</p>` : ''}
+  </div>
+
+  <div class="summary-grid">
+    <div class="summary-card"><h3>Total Trainees</h3><div class="value">${filteredTrainees.length}</div></div>
+    <div class="summary-card"><h3>Total Grades</h3><div class="value">${filteredGrades.length}</div></div>
+    <div class="summary-card"><h3>Total Assessments</h3><div class="value">${filteredAssessments.length}</div></div>
+    <div class="summary-card"><h3>Average Score</h3><div class="value">${traineeResults.length > 0 ? (traineeResults.reduce((sum: number, tr: any) => sum + parseFloat(tr.average), 0) / traineeResults.length).toFixed(2) : '0.00'}%</div></div>
+  </div>
+
+  <h2>Trainee Results Summary</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>User ID</th>
+        <th>Total Assessments</th>
+        <th>Total Score</th>
+        <th>Max Score</th>
+        <th>Average (%)</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${traineeResults.map((tr: any) => `
+        <tr>
+          <td>${tr.name}</td>
+          <td>${tr.user_id || 'N/A'}</td>
+          <td>${tr.totalAssessments}</td>
+          <td>${tr.totalScore}</td>
+          <td>${tr.maxScore}</td>
+          <td>${tr.average}%</td>
+        </tr>
+      `).join('')}
+    </tbody>
+  </table>
+
+  <h2>Detailed Grade Records</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Trainee</th>
+        <th>Assessment</th>
+        <th>Subject</th>
+        <th>Score</th>
+        <th>Max Score</th>
+        <th>Percentage</th>
+        <th>Comments</th>
+        <th>Date</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${filteredGrades.map((g: any) => {
+        const trainee = filteredTrainees.find((t: any) => t.id === g.trainee_id);
+        const assessment = filteredAssessments.find((a: any) => a.id === g.assessment_id);
+        const score = typeof g.score === 'number' ? g.score : parseFloat(g.score) || 0;
+        const maxScore = typeof assessment?.max_score === 'number' ? assessment.max_score : parseFloat(assessment?.max_score) || 100;
+        const percentage = maxScore > 0 ? ((score / maxScore) * 100).toFixed(2) : '0.00';
+        return `
+          <tr>
+            <td>${trainee?.name || 'N/A'}</td>
+            <td>${assessment?.title || 'N/A'}</td>
+            <td>${assessment?.subject_name || 'N/A'}</td>
+            <td>${score}</td>
+            <td>${maxScore}</td>
+            <td>${percentage}%</td>
+            <td>${g.comments || 'N/A'}</td>
+            <td>${g.created_at ? format(new Date(g.created_at), "yyyy-MM-dd") : 'N/A'}</td>
+          </tr>
+        `;
+      }).join('')}
+    </tbody>
+  </table>
+</body>
+</html>`;
+
+      const blob = new Blob([htmlContent], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `TAWA_Results_Report_${format(new Date(), "yyyy-MM-dd")}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast({ title: "Success", description: "Results report generated successfully!" });
+    } catch (error) {
+      console.error("Error generating results report:", error);
+      toast({ title: "Error", description: "Failed to generate report.", variant: "destructive" });
+    } finally {
+      setGenerating(null);
+    }
+  };
+
   const handleGenerateReport = (reportId: number, reportTitle: string) => {
+    // Check if course is selected (except for system-wide reports)
+    const systemWideReports = [5, 6, 7]; // System Overview, Users Report, Courses Report
+    if (!systemWideReports.includes(reportId) && !selectedCourse) {
+      toast({
+        title: "Course Selection Required",
+        description: "Please select a course before generating this report.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     switch (reportId) {
       case 1:
         generatePerformanceReport();
@@ -1273,12 +1513,15 @@ const Reports = () => {
       case 15:
         if (isSuperAdmin) generateAssessmentsReport();
         break;
+      case 16:
+        generateResultsReport();
+        break;
       default:
-        toast({
+    toast({
           title: "Error",
           description: "Unknown report type.",
           variant: "destructive",
-        });
+    });
     }
   };
 
@@ -1288,6 +1531,40 @@ const Reports = () => {
         <h1 className="text-3xl font-bold text-primary">Reports & Analytics</h1>
         <p className="text-muted-foreground">Generate and download training reports</p>
       </div>
+
+      {/* Course Selection */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Select Course</CardTitle>
+          <CardDescription>Choose a course before generating reports</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            <Label htmlFor="course-select">Course</Label>
+            <Select
+              value={selectedCourse}
+              onValueChange={setSelectedCourse}
+              disabled={loadingCourses}
+            >
+              <SelectTrigger id="course-select" className="w-full">
+                <SelectValue placeholder={loadingCourses ? "Loading courses..." : "Select a course"} />
+              </SelectTrigger>
+              <SelectContent>
+                {courses.map((course: any) => (
+                  <SelectItem key={course.id} value={String(course.id)}>
+                    {course.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {!selectedCourse && (
+              <p className="text-sm text-muted-foreground">
+                Please select a course to generate reports.
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Report Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1311,7 +1588,7 @@ const Reports = () => {
                   onClick={() => handleGenerateReport(report.id, report.title)}
                   className="w-full"
                   variant="outline"
-                  disabled={generating === report.id}
+                  disabled={generating === report.id || (!selectedCourse && ![5, 6, 7].includes(report.id))}
                 >
                   {generating === report.id ? (
                     <>
@@ -1320,8 +1597,8 @@ const Reports = () => {
                     </>
                   ) : (
                     <>
-                      <Download className="w-4 h-4 mr-2" />
-                      Generate Report
+                  <Download className="w-4 h-4 mr-2" />
+                  Generate Report
                     </>
                   )}
                 </Button>

@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { assessmentsApi, subjectsApi, gradesApi, usersApi } from "@/lib/api";
+import { assessmentsApi, subjectsApi, gradesApi, usersApi, coursesApi } from "@/lib/api";
 import { Plus, Edit, Trash2, FileText, Users, Calendar } from "lucide-react";
 import { format } from "date-fns";
 
@@ -41,6 +41,9 @@ const Assessments = () => {
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [subjects, setSubjects] = useState<any[]>([]);
   const [trainees, setTrainees] = useState<any[]>([]);
+  const [courses, setCourses] = useState<any[]>([]);
+  const [selectedCourse, setSelectedCourse] = useState<string>("");
+  const [loadingCourses, setLoadingCourses] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [showAssessmentDialog, setShowAssessmentDialog] = useState(false);
   const [showGradesDialog, setShowGradesDialog] = useState(false);
@@ -57,23 +60,74 @@ const Assessments = () => {
   const [grades, setGrades] = useState<Grade[]>([]);
   const [gradeForm, setGradeForm] = useState<Record<number, { score: string; comments: string }>>({});
 
+  const isSuperAdmin = user?.role === "super_admin";
+  const adminCourseId = user?.course_id;
+
+  // Load courses on mount
   useEffect(() => {
-    loadData();
-  }, []);
+    const loadCourses = async () => {
+      try {
+        setLoadingCourses(true);
+        const coursesData = await coursesApi.getAll().catch(() => []);
+        const coursesArray = Array.isArray(coursesData) ? coursesData : [];
+        
+        // For regular admins, filter to only their course
+        if (!isSuperAdmin && adminCourseId) {
+          const filteredCourses = coursesArray.filter((c: any) => c.id === adminCourseId);
+          setCourses(filteredCourses);
+          // Auto-select the admin's course
+          if (filteredCourses.length > 0) {
+            setSelectedCourse(String(filteredCourses[0].id));
+          }
+        } else {
+          setCourses(coursesArray);
+        }
+      } catch (error) {
+        console.error("Error loading courses:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load courses. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoadingCourses(false);
+      }
+    };
+
+    loadCourses();
+  }, [isSuperAdmin, adminCourseId, toast]);
+
+  useEffect(() => {
+    if (selectedCourse || (!isSuperAdmin && adminCourseId)) {
+      loadData();
+    }
+  }, [selectedCourse]);
 
   const loadData = async () => {
+    if (!selectedCourse && (!isSuperAdmin || !adminCourseId)) {
+      return;
+    }
+
     try {
       setIsLoading(true);
+      const courseId = selectedCourse ? Number(selectedCourse) : (adminCourseId ? Number(adminCourseId) : undefined);
+      const instructorId = (user?.role === 'admin' || user?.role === 'super_admin') ? undefined : user?.id?.toString();
+      
       const [assessmentsData, subjectsData, traineesData] = await Promise.all([
-        assessmentsApi.getAll((user?.role === 'admin' || user?.role === 'super_admin') ? undefined : user?.id?.toString()),
-        subjectsApi.getAll((user?.role === 'admin' || user?.role === 'super_admin') ? undefined : user?.id?.toString()),
+        assessmentsApi.getAll(instructorId, undefined, courseId),
+        subjectsApi.getAll(instructorId, undefined, courseId),
         usersApi.getAll('trainee'),
       ]);
       
       // Ensure data is an array
-      const assessmentsList = Array.isArray(assessmentsData) ? assessmentsData : [];
-      const subjectsList = Array.isArray(subjectsData) ? subjectsData : [];
-      const traineesList = Array.isArray(traineesData) ? traineesData : [];
+      let assessmentsList = Array.isArray(assessmentsData) ? assessmentsData : [];
+      let subjectsList = Array.isArray(subjectsData) ? subjectsData : [];
+      let traineesList = Array.isArray(traineesData) ? traineesData : [];
+      
+      // Filter trainees by course if course is selected
+      if (courseId) {
+        traineesList = traineesList.filter((t: any) => t.course_id === courseId);
+      }
       
       setAssessments(assessmentsList);
       setSubjects(subjectsList);
@@ -103,9 +157,20 @@ const Assessments = () => {
       return;
     }
 
+    const courseId = selectedCourse ? Number(selectedCourse) : (adminCourseId ? Number(adminCourseId) : undefined);
+    if (!courseId) {
+      toast({
+        title: "Course Required",
+        description: "Please select a course before creating an assessment",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       await assessmentsApi.create({
         subject_id: parseInt(assessmentForm.subject_id),
+        course_id: courseId,
         title: assessmentForm.title,
         description: assessmentForm.description || undefined,
         type: assessmentForm.type,
@@ -236,6 +301,40 @@ const Assessments = () => {
 
   return (
     <div className="space-y-6">
+      {/* Course Selection */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Select Course</CardTitle>
+          <CardDescription>Choose a course to view assessments</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            <Label htmlFor="course-select">Course</Label>
+            <Select
+              value={selectedCourse}
+              onValueChange={setSelectedCourse}
+              disabled={loadingCourses}
+            >
+              <SelectTrigger id="course-select" className="w-full">
+                <SelectValue placeholder={loadingCourses ? "Loading courses..." : "Select a course"} />
+              </SelectTrigger>
+              <SelectContent>
+                {courses.map((course: any) => (
+                  <SelectItem key={course.id} value={String(course.id)}>
+                    {course.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {!selectedCourse && !adminCourseId && (
+              <p className="text-sm text-muted-foreground">
+                Please select a course to view assessments.
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-primary">Assessments & Grades</h1>

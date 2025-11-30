@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { gradesApi, usersApi, assessmentsApi, subjectsApi } from "@/lib/api";
+import { gradesApi, usersApi, assessmentsApi, subjectsApi, coursesApi } from "@/lib/api";
 import { Edit, Eye, Download, TrendingUp } from "lucide-react";
 import { format } from "date-fns";
 
@@ -30,6 +30,9 @@ const Results = () => {
   const [trainees, setTrainees] = useState<any[]>([]);
   const [assessments, setAssessments] = useState<any[]>([]);
   const [subjects, setSubjects] = useState<any[]>([]);
+  const [courses, setCourses] = useState<any[]>([]);
+  const [selectedCourse, setSelectedCourse] = useState<string>("");
+  const [loadingCourses, setLoadingCourses] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedTrainee, setSelectedTrainee] = useState<string>("");
   const [selectedSubject, setSelectedSubject] = useState<string>("");
@@ -37,14 +40,57 @@ const Results = () => {
   const [editingGrade, setEditingGrade] = useState<Grade | null>(null);
   const [editForm, setEditForm] = useState({ score: "", comments: "" });
 
+  const isSuperAdmin = user?.role === "super_admin";
+  const adminCourseId = user?.course_id;
+
+  // Load courses on mount
   useEffect(() => {
+    const loadCourses = async () => {
+      try {
+        setLoadingCourses(true);
+        const coursesData = await coursesApi.getAll().catch(() => []);
+        const coursesArray = Array.isArray(coursesData) ? coursesData : [];
+        
+        // For regular admins, filter to only their course
+        if (!isSuperAdmin && adminCourseId) {
+          const filteredCourses = coursesArray.filter((c: any) => c.id === adminCourseId);
+          setCourses(filteredCourses);
+          // Auto-select the admin's course
+          if (filteredCourses.length > 0) {
+            setSelectedCourse(String(filteredCourses[0].id));
+          }
+        } else {
+          setCourses(coursesArray);
+        }
+      } catch (error) {
+        console.error("Error loading courses:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load courses. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoadingCourses(false);
+      }
+    };
+
     if (!authLoading && user) {
+      loadCourses();
+    }
+  }, [isSuperAdmin, adminCourseId, toast, authLoading, user]);
+
+  useEffect(() => {
+    if (!authLoading && user && (selectedCourse || (!isSuperAdmin && adminCourseId))) {
       loadData();
     }
-  }, [user, authLoading]);
+  }, [user, authLoading, selectedCourse]);
 
   const loadData = async () => {
     if (!user) {
+      return;
+    }
+
+    if (!selectedCourse && (!isSuperAdmin || !adminCourseId)) {
       return;
     }
 
@@ -54,19 +100,25 @@ const Results = () => {
       // For instructors, get grades from their assessments only
       // For admin, get all grades (instructorId = undefined)
       const instructorId = (user.role === 'admin' || user.role === 'super_admin') ? undefined : user.id?.toString();
+      const courseId = selectedCourse ? Number(selectedCourse) : (adminCourseId ? Number(adminCourseId) : undefined);
       
       const [gradesData, traineesData, assessmentsData, subjectsData] = await Promise.all([
-        gradesApi.getAll(undefined, undefined, instructorId),
+        gradesApi.getAll(undefined, undefined, instructorId, courseId),
         usersApi.getAll('trainee'),
-        assessmentsApi.getAll(instructorId),
-        subjectsApi.getAll(instructorId),
+        assessmentsApi.getAll(instructorId, undefined, courseId),
+        subjectsApi.getAll(instructorId, undefined, courseId),
       ]);
 
       // Ensure all data is arrays
-      const gradesList = Array.isArray(gradesData) ? gradesData : [];
-      const traineesList = Array.isArray(traineesData) ? traineesData : [];
-      const assessmentsList = Array.isArray(assessmentsData) ? assessmentsData : [];
-      const subjectsList = Array.isArray(subjectsData) ? subjectsData : [];
+      let gradesList = Array.isArray(gradesData) ? gradesData : [];
+      let traineesList = Array.isArray(traineesData) ? traineesData : [];
+      let assessmentsList = Array.isArray(assessmentsData) ? assessmentsData : [];
+      let subjectsList = Array.isArray(subjectsData) ? subjectsData : [];
+
+      // Filter trainees by course if course is selected
+      if (courseId) {
+        traineesList = traineesList.filter((t: any) => t.course_id === courseId);
+      }
 
       setGrades(gradesList);
       setTrainees(traineesList);
@@ -171,6 +223,40 @@ const Results = () => {
 
   return (
     <div className="space-y-6">
+      {/* Course Selection */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Select Course</CardTitle>
+          <CardDescription>Choose a course to view results</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            <Label htmlFor="course-select">Course</Label>
+            <Select
+              value={selectedCourse}
+              onValueChange={setSelectedCourse}
+              disabled={loadingCourses}
+            >
+              <SelectTrigger id="course-select" className="w-full">
+                <SelectValue placeholder={loadingCourses ? "Loading courses..." : "Select a course"} />
+              </SelectTrigger>
+              <SelectContent>
+                {courses.map((course: any) => (
+                  <SelectItem key={course.id} value={String(course.id)}>
+                    {course.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {!selectedCourse && !adminCourseId && (
+              <p className="text-sm text-muted-foreground">
+                Please select a course to view results.
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-primary">Results & Grades</h1>
