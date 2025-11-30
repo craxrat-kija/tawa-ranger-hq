@@ -19,6 +19,10 @@ import DoctorActivities from "./DoctorActivities";
 import AdminDoctorView from "./AdminDoctorView";
 import Setup from "./Setup";
 import AdminSettings from "./AdminSettings";
+import { lazy, Suspense } from "react";
+import { Loader2 } from "lucide-react";
+
+const SystemReport = lazy(() => import("./SystemReport"));
 import {
   Users,
   BookOpen,
@@ -41,7 +45,8 @@ import {
   PlusCircle,
   MapPin,
   Settings,
-  Loader2,
+  FileBarChart,
+  Download,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -86,7 +91,7 @@ const AdminDashboard = () => {
 
   const handleLogout = () => {
     logout();
-    navigate("/");
+    navigate("/login");
   };
 
   const isSuperAdmin = user?.role === "super_admin";
@@ -279,7 +284,10 @@ const AdminDashboard = () => {
     ...(isSuperAdmin ? [
       { icon: PlusCircle, label: "Create Course & Admin", path: `${basePath}/setup`, permission: null },
       { icon: Settings, label: "Admin Settings", path: `${basePath}/settings`, permission: null },
-    ] : []),
+      { icon: FileBarChart, label: "System Report", path: `${basePath}/system-report`, permission: null },
+    ] : [
+      { icon: FileBarChart, label: "Course Report", path: `${basePath}/system-report`, permission: "can_manage_reports" },
+    ]),
     { icon: Users, label: "Manage Users", path: `${basePath}/users`, permission: "can_manage_users" },
     { icon: BookOpen, label: "Subjects", path: `${basePath}/subjects`, permission: "can_manage_subjects" },
     { icon: Upload, label: "Materials", path: `${basePath}/materials`, permission: "can_manage_materials" },
@@ -370,10 +378,11 @@ const AdminDashboard = () => {
       <Button
         variant="ghost"
         size="icon"
-        className="fixed top-4 left-4 lg:hidden z-50"
+        className="fixed top-4 left-4 lg:hidden z-50 bg-white/90 hover:bg-white dark:bg-gray-800/90 dark:hover:bg-gray-800 border border-gray-300 dark:border-gray-700 shadow-lg backdrop-blur-sm transition-all hover:scale-105 active:scale-95"
         onClick={() => setSidebarOpen(!sidebarOpen)}
+        aria-label="Toggle sidebar"
       >
-        {sidebarOpen ? <X /> : <Menu />}
+        {sidebarOpen ? <X className="drop-shadow-sm" /> : <Menu className="drop-shadow-sm" />}
       </Button>
 
       {/* Main Content */}
@@ -434,6 +443,23 @@ const AdminDashboard = () => {
                 <Route path="/settings" element={<AdminSettings />} />
               </>
             )}
+            {(isSuperAdmin || hasPermission("can_manage_reports")) && (
+              <Route 
+                path="/system-report" 
+                element={
+                  <Suspense fallback={
+                    <div className="flex items-center justify-center h-64">
+                      <div className="text-center">
+                        <Loader2 className="w-8 h-8 mx-auto mb-4 animate-spin text-primary" />
+                        <p className="text-muted-foreground">Loading Report...</p>
+                      </div>
+                    </div>
+                  }>
+                    <SystemReport />
+                  </Suspense>
+                } 
+              />
+            )}
             {/* Protected routes - only accessible if admin has permission or is super admin */}
             {hasPermission("can_manage_users") && (
               <>
@@ -453,7 +479,7 @@ const AdminDashboard = () => {
             {hasPermission("can_manage_timetable") && (
               <Route path="/timetable" element={<Timetable />} />
             )}
-            {hasPermission("can_manage_reports") && (
+            {(isSuperAdmin || hasPermission("can_manage_reports")) && (
               <Route path="/reports" element={<Reports />} />
             )}
             {hasPermission("can_manage_chat") && (

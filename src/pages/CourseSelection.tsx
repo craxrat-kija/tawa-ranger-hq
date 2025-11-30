@@ -75,7 +75,7 @@ const CourseSelection = () => {
 
   const handleLogout = async () => {
     await logout();
-    navigate("/");
+    navigate("/login");
   };
 
   const getStatusColor = (status: Course["status"]) => {

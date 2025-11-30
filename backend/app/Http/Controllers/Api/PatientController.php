@@ -50,21 +50,67 @@ class PatientController extends Controller
             ], 403);
         }
         
-        $validated = $request->validate([
-            'full_name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:patients',
-            'phone' => 'required|string',
-            'blood_type' => 'nullable|string',
-            'allergies' => 'nullable|string',
-            'medical_history' => 'nullable|string',
-            'emergency_contact' => 'required|string',
-        ]);
+        // If user_id is provided, fetch user data
+        $user = null;
+        if ($request->has('user_id') && $request->user_id) {
+            $user = User::find($request->user_id);
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'User not found.',
+                ], 404);
+            }
+        }
 
-        $patient = Patient::create([
-            ...$validated,
-            'registered_date' => now(),
-            'course_id' => $courseId,
-        ]);
+        // Validate based on whether user_id is provided
+        if ($user) {
+            // If user exists, use their data and only validate patient-specific fields
+            $validated = $request->validate([
+                'user_id' => 'nullable|exists:users,id',
+                'blood_type' => 'nullable|string',
+                'allergies' => 'nullable|string',
+                'medical_history' => 'nullable|string',
+                'emergency_contact' => 'required|string',
+            ]);
+
+            // Check if patient already exists for this user
+            $existingPatient = Patient::where('email', $user->email)->first();
+            if ($existingPatient) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'A patient record already exists for this user.',
+                ], 422);
+            }
+
+            $patient = Patient::create([
+                'full_name' => $user->name,
+                'email' => $user->email,
+                'phone' => $user->phone ?? '',
+                'blood_type' => $validated['blood_type'] ?? null,
+                'allergies' => $validated['allergies'] ?? null,
+                'medical_history' => $validated['medical_history'] ?? null,
+                'emergency_contact' => $validated['emergency_contact'],
+                'registered_date' => now(),
+                'course_id' => $courseId,
+            ]);
+        } else {
+            // Traditional patient creation (backwards compatibility)
+            $validated = $request->validate([
+                'full_name' => 'required|string|max:255',
+                'email' => 'required|string|email|max:255|unique:patients',
+                'phone' => 'required|string',
+                'blood_type' => 'nullable|string',
+                'allergies' => 'nullable|string',
+                'medical_history' => 'nullable|string',
+                'emergency_contact' => 'required|string',
+            ]);
+
+            $patient = Patient::create([
+                ...$validated,
+                'registered_date' => now(),
+                'course_id' => $courseId,
+            ]);
+        }
 
         // Create notification for admins
         $admins = User::where('role', 'admin')->get();

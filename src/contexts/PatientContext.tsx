@@ -45,7 +45,7 @@ interface PatientContextType {
   patients: Patient[];
   reports: MedicalReport[];
   attendance: AttendanceRecord[];
-  addPatient: (patient: Omit<Patient, "id" | "registeredDate">) => Promise<Patient>;
+  addPatient: (patient: Omit<Patient, "id" | "registeredDate"> & { userId?: number }) => Promise<Patient>;
   addReport: (report: Omit<MedicalReport, "id">) => Promise<void>;
   addAttendance: (attendance: Omit<AttendanceRecord, "id">) => Promise<void>;
   updatePatient: (id: string, patient: Partial<Patient>) => Promise<void>;
@@ -145,7 +145,7 @@ export const PatientProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [isAuthenticated, refreshData]);
 
-  const addPatient = async (patientData: Omit<Patient, "id" | "registeredDate">): Promise<Patient> => {
+  const addPatient = async (patientData: Omit<Patient, "id" | "registeredDate"> & { userId?: number }): Promise<Patient> => {
     const newPatient = await patientsApi.create({
       full_name: patientData.fullName,
       email: patientData.email,
@@ -154,6 +154,7 @@ export const PatientProvider = ({ children }: { children: ReactNode }) => {
       allergies: patientData.allergies,
       medical_history: patientData.medicalHistory,
       emergency_contact: patientData.emergencyContact,
+      user_id: patientData.userId,
     });
     await refreshData();
     return {
