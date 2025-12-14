@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { usersApi, subjectsApi, coursesApi, apiRequest } from "@/lib/api";
-import { Edit, Trash2, UserPlus, Download, Upload, Search, BookOpen, Users, X, ChevronRight, ChevronLeft, FileSpreadsheet } from "lucide-react";
+import { Edit, Trash2, UserPlus, Download, Upload, Search, BookOpen, Users, X, ChevronRight, ChevronLeft, FileSpreadsheet, Image, Camera, Eye, Plus, User, FileText, Trash } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 
 interface User {
@@ -23,6 +23,7 @@ interface User {
   course_id?: number;
   course_name?: string;
   user_id?: string;
+  passport_picture?: string;
 }
 
 interface Course {
@@ -42,6 +43,8 @@ const RegisterUsers = () => {
   
   const [showForm, setShowForm] = useState(false);
   const [showExcelDialog, setShowExcelDialog] = useState(false);
+  const [showPassportDialog, setShowPassportDialog] = useState(false);
+  const [viewingPassportUser, setViewingPassportUser] = useState<User | null>(null);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [editUser, setEditUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>([]);
@@ -62,7 +65,40 @@ const RegisterUsers = () => {
     department: "",
     password: "",
     course_id: "",
+    // Extended fields
+    date_of_birth: "",
+    gender: "",
+    tribe: "",
+    religion: "",
+    blood_group: "",
+    national_id: "",
+    birth_region: "",
+    birth_district: "",
+    birth_street: "",
+    phone_2: "",
+    profession: "",
+    university: "",
+    employment: "",
+    other_education_level: "",
+    other_education_university: "",
+    skills: [] as string[],
+    marital_status: "",
+    spouse_name: "",
+    spouse_phone: "",
+    father_name: "",
+    father_phone: "",
+    mother_name: "",
+    mother_phone: "",
+    number_of_children: "",
+    relatives: [] as any[],
   });
+  const [passportPicture, setPassportPicture] = useState<File | null>(null);
+  const [passportPreview, setPassportPreview] = useState<string | null>(null);
+  const [currentPassportUrl, setCurrentPassportUrl] = useState<string | null>(null);
+  const [supportiveDocuments, setSupportiveDocuments] = useState<File[]>([]);
+  const [supportiveDocumentsPreview, setSupportiveDocumentsPreview] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const supportiveDocsInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (user) {
@@ -120,7 +156,7 @@ const RegisterUsers = () => {
       
       const usersData = Array.isArray(response) ? response : (response?.data || []);
       
-      setUsers(usersData.map((u: any) => ({
+      const mappedUsers = usersData.map((u: any) => ({
         id: u.id.toString(),
         user_id: u.user_id || u.id.toString(),
         name: u.name,
@@ -130,7 +166,16 @@ const RegisterUsers = () => {
         department: u.department || "",
         course_id: u.course_id,
         course_name: u.course_name || null,
-      })));
+        passport_picture: u.passport_picture || null,
+      }));
+      
+      // Debug: Log users with passport pictures
+      const usersWithPictures = mappedUsers.filter((u: any) => u.passport_picture);
+      if (usersWithPictures.length > 0) {
+        console.log('Users with passport pictures:', usersWithPictures);
+      }
+      
+      setUsers(mappedUsers);
     } catch (error: any) {
       console.error('Error loading users:', error);
       toast({
@@ -279,32 +324,356 @@ const RegisterUsers = () => {
     }
   };
 
+  const handlePassportPictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        toast({
+          title: "Invalid File Type",
+          description: "Please select an image file.",
+          variant: "destructive",
+        });
+        return;
+      }
+      // Validate file size (max 2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        toast({
+          title: "File Too Large",
+          description: "Passport picture must be less than 2MB.",
+          variant: "destructive",
+        });
+        return;
+      }
+      setPassportPicture(file);
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPassportPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemovePassportPicture = () => {
+    setPassportPicture(null);
+    setPassportPreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const handleSupportiveDocumentsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      // Validate file types (PDF, images, Word docs)
+      const allowedTypes = [
+        'application/pdf',
+        'image/jpeg',
+        'image/jpg',
+        'image/png',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      ];
+      
+      const invalidFiles = files.filter(file => !allowedTypes.includes(file.type));
+      if (invalidFiles.length > 0) {
+        toast({
+          title: "Invalid File Type",
+          description: "Please select PDF, image, or Word document files only.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Validate file sizes (max 5MB per file)
+      const largeFiles = files.filter(file => file.size > 5 * 1024 * 1024);
+      if (largeFiles.length > 0) {
+        toast({
+          title: "File Too Large",
+          description: "Each document must be less than 5MB.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Limit to 5 documents
+      if (files.length > 5) {
+        toast({
+          title: "Too Many Files",
+          description: "You can upload a maximum of 5 documents.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setSupportiveDocuments(files);
+      
+      // Create previews for images
+      const previews: string[] = [];
+      files.forEach((file) => {
+        if (file.type.startsWith('image/')) {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            previews.push(reader.result as string);
+            if (previews.length === files.filter(f => f.type.startsWith('image/')).length) {
+              setSupportiveDocumentsPreview(previews);
+            }
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+      
+      if (files.filter(f => !f.type.startsWith('image/')).length === files.length) {
+        setSupportiveDocumentsPreview([]);
+      }
+    }
+  };
+
+  const handleRemoveSupportiveDocument = (index: number) => {
+    const newDocs = supportiveDocuments.filter((_, i) => i !== index);
+    setSupportiveDocuments(newDocs);
+    
+    // Update previews
+    const imageDocs = newDocs.filter(f => f.type.startsWith('image/'));
+    if (imageDocs.length > 0) {
+      const previews: string[] = [];
+      imageDocs.forEach((file) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          previews.push(reader.result as string);
+          if (previews.length === imageDocs.length) {
+            setSupportiveDocumentsPreview(previews);
+          }
+        };
+        reader.readAsDataURL(file);
+      });
+    } else {
+      setSupportiveDocumentsPreview([]);
+    }
+    
+    if (supportiveDocsInputRef.current) {
+      supportiveDocsInputRef.current.value = "";
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Validate required fields
+    if (!formData.name || !formData.email || !formData.role || !formData.phone || !formData.department) {
+      toast({
+        title: "Missing Required Fields",
+        description: "Please fill in all required fields (Name, Email, Role, Phone, Department).",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     try {
       if (editUser) {
-        const updateData: any = {
-          name: formData.name,
-          email: formData.email,
-          role: formData.role,
-          phone: formData.phone,
-          department: formData.department,
-        };
-        if (formData.password) {
-          updateData.password = formData.password;
-        }
-        if (formData.role === 'instructor' && selectedSubjects.length > 0) {
-          updateData.subject_ids = selectedSubjects;
-        } else if (formData.role === 'instructor') {
-          updateData.subject_ids = [];
-        }
+        // If passport picture is uploaded, use FormData
+        if (passportPicture) {
+          const formDataToSend = new FormData();
+          formDataToSend.append('name', formData.name);
+          formDataToSend.append('email', formData.email);
+          formDataToSend.append('role', formData.role);
+          formDataToSend.append('phone', formData.phone);
+          formDataToSend.append('department', formData.department);
+          if (formData.password) {
+            formDataToSend.append('password', formData.password);
+          }
+          if (formData.role === 'instructor' && selectedSubjects.length > 0) {
+            selectedSubjects.forEach(id => formDataToSend.append('subject_ids[]', id.toString()));
+          } else if (formData.role === 'instructor') {
+            formDataToSend.append('subject_ids', '[]');
+          }
+          formDataToSend.append('passport_picture', passportPicture);
+          
+          // Add extended fields
+          if (formData.date_of_birth) formDataToSend.append('date_of_birth', formData.date_of_birth);
+          if (formData.gender) formDataToSend.append('gender', formData.gender);
+          if (formData.tribe) formDataToSend.append('tribe', formData.tribe);
+          if (formData.religion) formDataToSend.append('religion', formData.religion);
+          if (formData.blood_group) formDataToSend.append('blood_group', formData.blood_group);
+          if (formData.national_id) formDataToSend.append('national_id', formData.national_id);
+          if (formData.birth_region) formDataToSend.append('birth_region', formData.birth_region);
+          if (formData.birth_district) formDataToSend.append('birth_district', formData.birth_district);
+          if (formData.birth_street) formDataToSend.append('birth_street', formData.birth_street);
+          if (formData.phone_2) formDataToSend.append('phone_2', formData.phone_2);
+          if (formData.profession) formDataToSend.append('profession', formData.profession);
+          if (formData.university) formDataToSend.append('university', formData.university);
+          if (formData.employment) formDataToSend.append('employment', formData.employment);
+          if (formData.other_education_level) formDataToSend.append('other_education_level', formData.other_education_level);
+          if (formData.other_education_university) formDataToSend.append('other_education_university', formData.other_education_university);
+          if (formData.marital_status) formDataToSend.append('marital_status', formData.marital_status);
+          if (formData.spouse_name) formDataToSend.append('spouse_name', formData.spouse_name);
+          if (formData.spouse_phone) formDataToSend.append('spouse_phone', formData.spouse_phone);
+          if (formData.father_name) formDataToSend.append('father_name', formData.father_name);
+          if (formData.father_phone) formDataToSend.append('father_phone', formData.father_phone);
+          if (formData.mother_name) formDataToSend.append('mother_name', formData.mother_name);
+          if (formData.mother_phone) formDataToSend.append('mother_phone', formData.mother_phone);
+          if (formData.number_of_children) formDataToSend.append('number_of_children', formData.number_of_children);
+          if (formData.skills && formData.skills.length > 0) {
+            // Send skills as JSON string for FormData
+            formDataToSend.append('skills', JSON.stringify(formData.skills));
+          }
+          // Filter out empty relatives (where name is empty) before sending
+          // Always ensure relatives is an array
+          const relativesArray = Array.isArray(formData.relatives) ? formData.relatives : [];
+          const validRelatives = relativesArray.filter((rel: any) => rel && rel.name && rel.name.trim() !== "");
+          // Always send relatives as JSON string for FormData (even if empty array)
+          formDataToSend.append('relatives', JSON.stringify(validRelatives));
+          
+          // Add supportive documents for doctors
+          if (formData.role === 'doctor' && supportiveDocuments.length > 0) {
+            supportiveDocuments.forEach((doc, index) => {
+              formDataToSend.append(`supportive_documents[${index}]`, doc);
+            });
+          }
+          
+          formDataToSend.append('_method', 'PUT');
 
-        await usersApi.update(editUser.id, updateData);
+          const token = localStorage.getItem('auth_token');
+          const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+          const response = await fetch(`${API_BASE_URL}/api/users/${editUser.id}`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Accept': 'application/json',
+            },
+            body: formDataToSend,
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            // Extract validation errors if they exist
+            if (errorData.errors) {
+              const validationErrors = Object.entries(errorData.errors)
+                .map(([field, messages]: [string, any]) => `${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`)
+                .join('\n');
+              throw new Error(`Validation failed:\n${validationErrors}`);
+            }
+            throw new Error(errorData.message || 'Failed to update user');
+          }
+
+          const responseData = await response.json();
+          if (responseData && !responseData.success && responseData.message) {
+            throw new Error(responseData.message);
+          }
+          toast({
+            title: "User Updated",
+            description: `${formData.name} has been updated successfully.`,
+          });
+        } else {
+          // Regular update without passport picture
+          const updateData: any = {
+            name: formData.name,
+            email: formData.email,
+            role: formData.role,
+            phone: formData.phone,
+            department: formData.department,
+          };
+          if (formData.password) {
+            updateData.password = formData.password;
+          }
+          if (formData.role === 'instructor' && selectedSubjects.length > 0) {
+            updateData.subject_ids = selectedSubjects;
+          } else if (formData.role === 'instructor') {
+            updateData.subject_ids = [];
+          }
+          
+          // Add extended fields (only if they have values)
+          if (formData.date_of_birth) updateData.date_of_birth = formData.date_of_birth;
+          if (formData.gender) updateData.gender = formData.gender;
+          if (formData.tribe) updateData.tribe = formData.tribe;
+          if (formData.religion) updateData.religion = formData.religion;
+          if (formData.blood_group) updateData.blood_group = formData.blood_group;
+          if (formData.national_id) updateData.national_id = formData.national_id;
+          if (formData.birth_region) updateData.birth_region = formData.birth_region;
+          if (formData.birth_district) updateData.birth_district = formData.birth_district;
+          if (formData.birth_street) updateData.birth_street = formData.birth_street;
+          if (formData.phone_2) updateData.phone_2 = formData.phone_2;
+          if (formData.profession) updateData.profession = formData.profession;
+          if (formData.university) updateData.university = formData.university;
+          if (formData.employment) updateData.employment = formData.employment;
+          if (formData.other_education_level) updateData.other_education_level = formData.other_education_level;
+          if (formData.other_education_university) updateData.other_education_university = formData.other_education_university;
+          if (formData.marital_status) updateData.marital_status = formData.marital_status;
+          if (formData.spouse_name) updateData.spouse_name = formData.spouse_name;
+          if (formData.spouse_phone) updateData.spouse_phone = formData.spouse_phone;
+          if (formData.father_name) updateData.father_name = formData.father_name;
+          if (formData.father_phone) updateData.father_phone = formData.father_phone;
+          if (formData.mother_name) updateData.mother_name = formData.mother_name;
+          if (formData.mother_phone) updateData.mother_phone = formData.mother_phone;
+          if (formData.number_of_children) updateData.number_of_children = parseInt(formData.number_of_children) || 0;
+          if (formData.skills && formData.skills.length > 0) updateData.skills = formData.skills;
+          // Filter out empty relatives (where name is empty) before sending
+          // Always ensure relatives is an array
+          const relativesArray = Array.isArray(formData.relatives) ? formData.relatives : [];
+          const validRelatives = relativesArray.filter((rel: any) => rel && rel.name && rel.name.trim() !== "");
+          updateData.relatives = validRelatives; // Always send as array, even if empty
+
+          try {
+          const response = await usersApi.update(editUser.id, updateData);
+          // Check if response indicates failure
+          if (response && typeof response === 'object') {
+            if ('success' in response && !response.success) {
+              // Check for validation errors
+              if (response.errors) {
+                const validationErrors = Object.entries(response.errors)
+                  .map(([field, messages]: [string, any]) => {
+                    const fieldName = field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    const msgList = Array.isArray(messages) ? messages.join(', ') : String(messages);
+                    return `${fieldName}: ${msgList}`;
+                  })
+                  .join('\n');
+                throw new Error(`Validation failed:\n${validationErrors}`);
+              }
+              throw new Error(response.message || 'Failed to update user');
+            }
+            if ('data' in response && response.data && typeof response.data === 'object' && 'success' in response.data && !response.data.success) {
+              // Check for validation errors in data
+              if (response.data.errors) {
+                const validationErrors = Object.entries(response.data.errors)
+                  .map(([field, messages]: [string, any]) => {
+                    const fieldName = field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    const msgList = Array.isArray(messages) ? messages.join(', ') : String(messages);
+                    return `${fieldName}: ${msgList}`;
+                  })
+                  .join('\n');
+                throw new Error(`Validation failed:\n${validationErrors}`);
+              }
+              throw new Error(response.data.message || 'Failed to update user');
+            }
+          }
+        } catch (apiError: any) {
+          // Re-throw with better error message if it's a validation error
+          if (apiError.message && apiError.message.includes('Validation failed')) {
+            throw apiError;
+          }
+          // Try to extract validation errors from the error object
+          if (apiError.response?.data?.errors) {
+            const validationErrors = Object.entries(apiError.response.data.errors)
+              .map(([field, messages]: [string, any]) => {
+                const fieldName = field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                const msgList = Array.isArray(messages) ? messages.join(', ') : String(messages);
+                return `${fieldName}: ${msgList}`;
+              })
+              .join('\n');
+            throw new Error(`Validation failed:\n${validationErrors}`);
+          }
+          // If the error message already contains validation errors (from apiRequest), use it
+          if (apiError.message && apiError.message !== 'An error occurred') {
+            throw apiError;
+          }
+          throw apiError;
+        }
         toast({
           title: "User Updated",
           description: `${formData.name} has been updated successfully.`,
         });
+        }
       } else {
         if (!canCreateUsers) {
           toast({
@@ -324,36 +693,113 @@ const RegisterUsers = () => {
           return;
         }
         
-        const createData: any = {
-          name: formData.name,
-          email: formData.email,
-          role: formData.role,
-          phone: formData.phone,
-          department: formData.department,
-        };
-        
-        // Add course_id if super admin and course is selected
-        if (isSuperAdmin && selectedCourse) {
-          createData.course_id = selectedCourse.id;
-        } else if (isSuperAdmin && formData.course_id) {
-          createData.course_id = parseInt(formData.course_id);
-        }
-        
-        if (formData.password) {
-          createData.password = formData.password;
-        }
-        if (formData.role === 'instructor' && selectedSubjects.length > 0) {
-          createData.subject_ids = selectedSubjects;
-        }
+        // If doctor has supportive documents, use FormData
+        if (formData.role === 'doctor' && supportiveDocuments.length > 0) {
+          const formDataToSend = new FormData();
+          formDataToSend.append('name', formData.name);
+          formDataToSend.append('email', formData.email);
+          formDataToSend.append('role', formData.role);
+          formDataToSend.append('phone', formData.phone);
+          formDataToSend.append('department', formData.department);
+          
+          if (formData.password) {
+            formDataToSend.append('password', formData.password);
+          }
+          
+          // Add course_id if super admin and course is selected
+          if (isSuperAdmin && selectedCourse) {
+            formDataToSend.append('course_id', selectedCourse.id.toString());
+          } else if (isSuperAdmin && formData.course_id) {
+            formDataToSend.append('course_id', formData.course_id);
+          }
+          
+          if (formData.role === 'instructor' && selectedSubjects.length > 0) {
+            selectedSubjects.forEach(id => formDataToSend.append('subject_ids[]', id.toString()));
+          }
+          
+          // Add supportive documents
+          supportiveDocuments.forEach((doc, index) => {
+            formDataToSend.append(`supportive_documents[${index}]`, doc);
+          });
 
-        const response = await usersApi.create(createData);
-        const registeredUser = response?.data || response;
-        const userId = registeredUser?.user_id || 'User ID pending';
-        
-        toast({
-          title: "User Registered",
-          description: `${formData.name} has been registered successfully. User ID: ${userId}`,
-        });
+          const token = localStorage.getItem('auth_token');
+          const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+          const response = await fetch(`${API_BASE_URL}/api/users`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Accept': 'application/json',
+            },
+            body: formDataToSend,
+          });
+
+          if (!response.ok) {
+            let errorData: any = {};
+            try {
+              errorData = await response.json();
+            } catch (e) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            if (errorData.errors) {
+              const validationErrors = Object.entries(errorData.errors)
+                .map(([field, messages]: [string, any]) => {
+                  const fieldName = field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                  const msgList = Array.isArray(messages) ? messages.join(', ') : String(messages);
+                  return `${fieldName}: ${msgList}`;
+                })
+                .join('\n');
+              const error = new Error(`Validation failed:\n${validationErrors}`);
+              (error as any).response = { data: errorData };
+              throw error;
+            }
+            
+            const error = new Error(errorData.message || 'Failed to create user');
+            (error as any).response = { data: errorData };
+            throw error;
+          }
+
+          const responseData = await response.json();
+          const registeredUser = responseData?.data || responseData;
+          const userId = registeredUser?.user_id || 'User ID pending';
+          
+          toast({
+            title: "User Registered",
+            description: `${formData.name} has been registered successfully. User ID: ${userId}`,
+          });
+        } else {
+          // Regular create without documents
+          const createData: any = {
+            name: formData.name,
+            email: formData.email,
+            role: formData.role,
+            phone: formData.phone,
+            department: formData.department,
+          };
+          
+          // Add course_id if super admin and course is selected
+          if (isSuperAdmin && selectedCourse) {
+            createData.course_id = selectedCourse.id;
+          } else if (isSuperAdmin && formData.course_id) {
+            createData.course_id = parseInt(formData.course_id);
+          }
+          
+          if (formData.password) {
+            createData.password = formData.password;
+          }
+          if (formData.role === 'instructor' && selectedSubjects.length > 0) {
+            createData.subject_ids = selectedSubjects;
+          }
+
+          const response = await usersApi.create(createData);
+          const registeredUser = response?.data || response;
+          const userId = registeredUser?.user_id || 'User ID pending';
+          
+          toast({
+            title: "User Registered",
+            description: `${formData.name} has been registered successfully. User ID: ${userId}`,
+          });
+        }
       }
 
       setFormData({ 
@@ -363,62 +809,229 @@ const RegisterUsers = () => {
         phone: "", 
         department: "", 
         password: "", 
-        course_id: selectedCourse ? selectedCourse.id.toString() : "" 
+        course_id: selectedCourse ? selectedCourse.id.toString() : "",
+        date_of_birth: "",
+        gender: "",
+        tribe: "",
+        religion: "",
+        blood_group: "",
+        national_id: "",
+        birth_region: "",
+        birth_district: "",
+        birth_street: "",
+        phone_2: "",
+        profession: "",
+        university: "",
+        employment: "",
+        other_education_level: "",
+        other_education_university: "",
+        skills: [],
+        marital_status: "",
+        spouse_name: "",
+        spouse_phone: "",
+        father_name: "",
+        father_phone: "",
+        mother_name: "",
+        mother_phone: "",
+        number_of_children: "",
+        relatives: [],
       });
       setSelectedSubjects([]);
+      setPassportPicture(null);
+      setPassportPreview(null);
+      setCurrentPassportUrl(null);
+      setSupportiveDocuments([]);
+      setSupportiveDocumentsPreview([]);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      if (supportiveDocsInputRef.current) {
+        supportiveDocsInputRef.current.value = "";
+      }
       setShowForm(false);
       setEditUser(null);
       loadUsers();
     } catch (error: any) {
       console.error('Error saving user:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response,
+        stack: error.stack
+      });
       let errorMessage = "Failed to save user. Please try again.";
       
-      if (error.message) {
+      // Check for validation errors in different formats
+      if (error.message && error.message.includes('Validation failed')) {
         errorMessage = error.message;
+      } else if (error.response?.data?.errors) {
+        const validationErrors = Object.entries(error.response.data.errors)
+          .map(([field, messages]: [string, any]) => {
+            const fieldName = field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            const msgList = Array.isArray(messages) ? messages.join(', ') : messages;
+            return `${fieldName}: ${msgList}`;
+          })
+          .join('\n');
+        errorMessage = `Validation failed:\n${validationErrors}`;
       } else if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
       } else if (typeof error === 'string') {
         errorMessage = error;
-      }
-      
-      if (error.response?.data?.errors) {
-        const validationErrors = Object.values(error.response.data.errors).flat().join(', ');
-        errorMessage = validationErrors || errorMessage;
       }
       
       toast({
         title: "Error",
         description: errorMessage,
         variant: "destructive",
+        duration: 10000, // Show longer for validation errors
       });
     }
   };
 
   const handleEdit = async (user: User) => {
-    setEditUser(user);
-    setFormData({
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      phone: user.phone,
-      department: user.department,
-      password: "",
-      course_id: user.course_id?.toString() || "",
-    });
-    
-    if (user.role === 'instructor') {
-      try {
-        const userData = await usersApi.getById(user.id);
+    try {
+      // Always fetch full user data to ensure all fields are populated
+      const userData = await usersApi.getById(user.id);
+      
+      setEditUser(user);
+      setFormData({
+        name: userData.name || user.name || "",
+        email: userData.email || user.email || "",
+        role: userData.role || user.role || "",
+        phone: userData.phone || user.phone || "",
+        department: userData.department || user.department || "",
+        password: "",
+        course_id: (userData.course_id || user.course_id)?.toString() || "",
+        // Extended fields
+        date_of_birth: userData.date_of_birth || "",
+        gender: userData.gender || "",
+        tribe: userData.tribe || "",
+        religion: userData.religion || "",
+        blood_group: userData.blood_group || "",
+        national_id: userData.national_id || "",
+        birth_region: userData.birth_region || "",
+        birth_district: userData.birth_district || "",
+        birth_street: userData.birth_street || "",
+        phone_2: userData.phone_2 || "",
+        profession: userData.profession || "",
+        university: userData.university || "",
+        employment: userData.employment || "",
+        other_education_level: userData.other_education_level || "",
+        other_education_university: userData.other_education_university || "",
+        skills: userData.skills || [],
+        marital_status: userData.marital_status || "",
+        spouse_name: userData.spouse_name || "",
+        spouse_phone: userData.spouse_phone || "",
+        father_name: userData.father_name || "",
+        father_phone: userData.father_phone || "",
+        mother_name: userData.mother_name || "",
+        mother_phone: userData.mother_phone || "",
+        number_of_children: userData.number_of_children?.toString() || "",
+        relatives: userData.relatives || [],
+      });
+      setPassportPicture(null);
+      setPassportPreview(null);
+      
+      // Set current passport URL if user has one
+      const passportPicture = userData.passport_picture || user.passport_picture;
+      if (passportPicture) {
+        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+        setCurrentPassportUrl(`${API_BASE_URL}/storage/${passportPicture}`);
+      } else {
+        setCurrentPassportUrl(null);
+      }
+      
+      // Set selected subjects for instructors
+      if (userData.role === 'instructor' || user.role === 'instructor') {
         setSelectedSubjects(userData.subjects?.map((s: any) => s.id) || []);
-      } catch (error: any) {
-        console.error('Error loading user subjects:', error);
+      } else {
         setSelectedSubjects([]);
       }
-    } else {
-      setSelectedSubjects([]);
+      
+      setShowForm(true);
+    } catch (error: any) {
+      console.error('Error loading user data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load user information. Please try again.",
+        variant: "destructive",
+      });
     }
-    
-    setShowForm(true);
+  };
+
+  const handleViewPassport = (user: User) => {
+    console.log('View passport clicked for user:', user);
+    console.log('User passport_picture:', user.passport_picture);
+    setViewingPassportUser(user);
+    setShowPassportDialog(true);
+  };
+
+  const handleDownloadPassport = async () => {
+    if (!viewingPassportUser?.passport_picture || !viewingPassportUser?.id) return;
+
+    try {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+      const token = localStorage.getItem('auth_token');
+      
+      // Use the API endpoint to download with proper CORS headers
+      const downloadUrl = `${API_BASE_URL}/api/users/${viewingPassportUser.id}/passport-picture/download`;
+      
+      // Fetch the image with authentication
+      const response = await fetch(downloadUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to download passport picture');
+      }
+
+      // Get the blob from response
+      const blob = await response.blob();
+      
+      // Extract filename from response headers or create one
+      const contentDisposition = response.headers.get('content-disposition');
+      let fileName = `passport_${viewingPassportUser.name.replace(/\s+/g, '_')}.jpg`;
+      
+      if (contentDisposition) {
+        const fileNameMatch = contentDisposition.match(/filename="?(.+)"?/i);
+        if (fileNameMatch) {
+          fileName = fileNameMatch[1];
+        }
+      }
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      
+      // Trigger download
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 100);
+      
+      toast({
+        title: "Download Started",
+        description: "Passport picture is being downloaded.",
+      });
+    } catch (error) {
+      console.error("Error downloading passport picture:", error);
+      toast({
+        title: "Download Failed",
+        description: "Failed to download the passport picture. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleDelete = async (userId: string) => {
@@ -787,6 +1400,19 @@ const RegisterUsers = () => {
                                 <Button
                                   variant="ghost"
                                   size="icon"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleViewPassport(user);
+                                  }}
+                                  title={user.passport_picture ? "View passport picture" : "View passport picture (not available)"}
+                                  className={user.passport_picture ? "hover:bg-blue-50 dark:hover:bg-blue-950" : "hover:bg-muted/50 opacity-60"}
+                                >
+                                  <Eye className={`w-4 h-4 ${user.passport_picture ? "text-blue-600" : "text-muted-foreground"}`} />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
                                   onClick={() => handleEdit(user)}
                                   title="Edit user"
                                   className="hover:bg-primary/10"
@@ -1045,6 +1671,497 @@ const RegisterUsers = () => {
                     </div>
                   </div>
                 )}
+
+                {editUser && (
+                  <div className="space-y-2 col-span-2">
+                    <Label htmlFor="passport-picture">Passport Size Picture (Optional)</Label>
+                    <div className="space-y-3">
+                      {currentPassportUrl && !passportPreview && (
+                        <div className="relative inline-block">
+                          <img 
+                            src={currentPassportUrl} 
+                            alt="Current passport picture" 
+                            className="w-32 h-40 object-cover border-2 border-gray-300 rounded-lg"
+                          />
+                          <p className="text-xs text-muted-foreground mt-1">Current picture</p>
+                        </div>
+                      )}
+                      {passportPreview && (
+                        <div className="relative inline-block">
+                          <img 
+                            src={passportPreview} 
+                            alt="New passport picture preview" 
+                            className="w-32 h-40 object-cover border-2 border-primary rounded-lg"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0 bg-red-500 hover:bg-red-600 text-white"
+                            onClick={handleRemovePassportPicture}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                          <p className="text-xs text-primary font-medium mt-1">New picture (will replace current)</p>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <Input
+                          id="passport-picture"
+                          type="file"
+                          accept="image/*"
+                          ref={fileInputRef}
+                          onChange={handlePassportPictureChange}
+                          className="hidden"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="flex items-center gap-2"
+                        >
+                          <Camera className="w-4 h-4" />
+                          {passportPreview ? "Change Picture" : currentPassportUrl ? "Replace Picture" : "Upload Picture"}
+                        </Button>
+                        {passportPreview && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleRemovePassportPicture}
+                          >
+                            Remove
+                          </Button>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Recommended: Passport size (2x2 inches), Max 2MB. JPG, PNG formats accepted.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Supportive Documents for Doctors */}
+                {formData.role === 'doctor' && (
+                  <div className="space-y-2 col-span-2">
+                    <Label htmlFor="supportive-documents">Supportive Documents (Optional)</Label>
+                    <div className="space-y-3">
+                      {supportiveDocuments.length > 0 && (
+                        <div className="space-y-2">
+                          {supportiveDocuments.map((doc, index) => (
+                            <div key={index} className="flex items-center justify-between p-3 border rounded-lg bg-muted/50">
+                              <div className="flex items-center gap-3 flex-1">
+                                <FileText className="w-5 h-5 text-primary" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium truncate">{doc.name}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {(doc.size / 1024).toFixed(2)} KB
+                                  </p>
+                                </div>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveSupportiveDocument(index)}
+                                className="text-destructive hover:text-destructive"
+                              >
+                                <Trash className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <Input
+                          id="supportive-documents"
+                          type="file"
+                          accept=".pdf,.doc,.docx,image/*"
+                          multiple
+                          ref={supportiveDocsInputRef}
+                          onChange={handleSupportiveDocumentsChange}
+                          className="hidden"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => supportiveDocsInputRef.current?.click()}
+                          className="flex items-center gap-2"
+                          disabled={supportiveDocuments.length >= 5}
+                        >
+                          <Upload className="w-4 h-4" />
+                          {supportiveDocuments.length > 0 ? "Add More Documents" : "Upload Documents"}
+                        </Button>
+                        {supportiveDocuments.length > 0 && (
+                          <span className="text-sm text-muted-foreground">
+                            {supportiveDocuments.length} / 5 documents
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Upload supporting documents (e.g., certificates, licenses). Max 5 files, 5MB each. PDF, Word, or Image formats accepted.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Extended Fields - Only visible when editing and for admin/super_admin */}
+                {editUser && isAdmin && (
+                  <>
+                    <div className="col-span-2 border-t pt-4 mt-4">
+                      <h3 className="text-lg font-semibold mb-4">Additional Information</h3>
+                    </div>
+
+                    {/* Personal Information */}
+                    <div className="col-span-2">
+                      <h4 className="text-sm font-medium mb-3 text-muted-foreground">Personal Information</h4>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="date_of_birth">Date of Birth</Label>
+                      <Input
+                        id="date_of_birth"
+                        type="date"
+                        value={formData.date_of_birth}
+                        onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="gender">Gender</Label>
+                      <Select 
+                        value={formData.gender} 
+                        onValueChange={(value) => setFormData({ ...formData, gender: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select gender" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="male">Male</SelectItem>
+                          <SelectItem value="female">Female</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="tribe">Tribe</Label>
+                      <Input
+                        id="tribe"
+                        value={formData.tribe}
+                        onChange={(e) => setFormData({ ...formData, tribe: e.target.value })}
+                        placeholder="Enter tribe"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="religion">Religion</Label>
+                      <Input
+                        id="religion"
+                        value={formData.religion}
+                        onChange={(e) => setFormData({ ...formData, religion: e.target.value })}
+                        placeholder="Enter religion"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="blood_group">Blood Group</Label>
+                      <Select 
+                        value={formData.blood_group} 
+                        onValueChange={(value) => setFormData({ ...formData, blood_group: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select blood group" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="A+">A+</SelectItem>
+                          <SelectItem value="A-">A-</SelectItem>
+                          <SelectItem value="B+">B+</SelectItem>
+                          <SelectItem value="B-">B-</SelectItem>
+                          <SelectItem value="AB+">AB+</SelectItem>
+                          <SelectItem value="AB-">AB-</SelectItem>
+                          <SelectItem value="O+">O+</SelectItem>
+                          <SelectItem value="O-">O-</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="national_id">National ID</Label>
+                      <Input
+                        id="national_id"
+                        value={formData.national_id}
+                        onChange={(e) => setFormData({ ...formData, national_id: e.target.value })}
+                        placeholder="Enter national ID"
+                      />
+                    </div>
+
+                    {/* Birth Information */}
+                    <div className="col-span-2 mt-4">
+                      <h4 className="text-sm font-medium mb-3 text-muted-foreground">Birth Information</h4>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="birth_region">Birth Region</Label>
+                      <Input
+                        id="birth_region"
+                        value={formData.birth_region}
+                        onChange={(e) => setFormData({ ...formData, birth_region: e.target.value })}
+                        placeholder="Enter birth region"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="birth_district">Birth District</Label>
+                      <Input
+                        id="birth_district"
+                        value={formData.birth_district}
+                        onChange={(e) => setFormData({ ...formData, birth_district: e.target.value })}
+                        placeholder="Enter birth district"
+                      />
+                    </div>
+                    <div className="space-y-2 col-span-2">
+                      <Label htmlFor="birth_street">Birth Street/Address</Label>
+                      <Input
+                        id="birth_street"
+                        value={formData.birth_street}
+                        onChange={(e) => setFormData({ ...formData, birth_street: e.target.value })}
+                        placeholder="Enter birth street/address"
+                      />
+                    </div>
+
+                    {/* Contact Information */}
+                    <div className="col-span-2 mt-4">
+                      <h4 className="text-sm font-medium mb-3 text-muted-foreground">Additional Contact</h4>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="phone_2">Phone 2</Label>
+                      <Input
+                        id="phone_2"
+                        value={formData.phone_2}
+                        onChange={(e) => setFormData({ ...formData, phone_2: e.target.value })}
+                        placeholder="+255 XXX XXX XXX"
+                      />
+                    </div>
+
+                    {/* Professional Information */}
+                    <div className="col-span-2 mt-4">
+                      <h4 className="text-sm font-medium mb-3 text-muted-foreground">Professional Information</h4>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="profession">Profession</Label>
+                      <Input
+                        id="profession"
+                        value={formData.profession}
+                        onChange={(e) => setFormData({ ...formData, profession: e.target.value })}
+                        placeholder="Enter profession"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="university">University</Label>
+                      <Input
+                        id="university"
+                        value={formData.university}
+                        onChange={(e) => setFormData({ ...formData, university: e.target.value })}
+                        placeholder="Enter university"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="employment">Employment</Label>
+                      <Input
+                        id="employment"
+                        value={formData.employment}
+                        onChange={(e) => setFormData({ ...formData, employment: e.target.value })}
+                        placeholder="Enter employment"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="other_education_level">Other Education Level</Label>
+                      <Input
+                        id="other_education_level"
+                        value={formData.other_education_level}
+                        onChange={(e) => setFormData({ ...formData, other_education_level: e.target.value })}
+                        placeholder="Enter other education level"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="other_education_university">Other Education University</Label>
+                      <Input
+                        id="other_education_university"
+                        value={formData.other_education_university}
+                        onChange={(e) => setFormData({ ...formData, other_education_university: e.target.value })}
+                        placeholder="Enter other education university"
+                      />
+                    </div>
+
+                    {/* Family Information */}
+                    <div className="col-span-2 mt-4">
+                      <h4 className="text-sm font-medium mb-3 text-muted-foreground">Family Information</h4>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="marital_status">Marital Status</Label>
+                      <Select 
+                        value={formData.marital_status} 
+                        onValueChange={(value) => setFormData({ ...formData, marital_status: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select marital status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="single">Single</SelectItem>
+                          <SelectItem value="married">Married</SelectItem>
+                          <SelectItem value="divorced">Divorced</SelectItem>
+                          <SelectItem value="widowed">Widowed</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="spouse_name">Spouse Name</Label>
+                      <Input
+                        id="spouse_name"
+                        value={formData.spouse_name}
+                        onChange={(e) => setFormData({ ...formData, spouse_name: e.target.value })}
+                        placeholder="Enter spouse name"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="spouse_phone">Spouse Phone</Label>
+                      <Input
+                        id="spouse_phone"
+                        value={formData.spouse_phone}
+                        onChange={(e) => setFormData({ ...formData, spouse_phone: e.target.value })}
+                        placeholder="+255 XXX XXX XXX"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="father_name">Father Name</Label>
+                      <Input
+                        id="father_name"
+                        value={formData.father_name}
+                        onChange={(e) => setFormData({ ...formData, father_name: e.target.value })}
+                        placeholder="Enter father name"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="father_phone">Father Phone</Label>
+                      <Input
+                        id="father_phone"
+                        value={formData.father_phone}
+                        onChange={(e) => setFormData({ ...formData, father_phone: e.target.value })}
+                        placeholder="+255 XXX XXX XXX"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="mother_name">Mother Name</Label>
+                      <Input
+                        id="mother_name"
+                        value={formData.mother_name}
+                        onChange={(e) => setFormData({ ...formData, mother_name: e.target.value })}
+                        placeholder="Enter mother name"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="mother_phone">Mother Phone</Label>
+                      <Input
+                        id="mother_phone"
+                        value={formData.mother_phone}
+                        onChange={(e) => setFormData({ ...formData, mother_phone: e.target.value })}
+                        placeholder="+255 XXX XXX XXX"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="number_of_children">Number of Children</Label>
+                      <Input
+                        id="number_of_children"
+                        type="number"
+                        min="0"
+                        value={formData.number_of_children}
+                        onChange={(e) => setFormData({ ...formData, number_of_children: e.target.value })}
+                        placeholder="0"
+                      />
+                    </div>
+
+                    {/* Relatives Information */}
+                    <div className="col-span-2 mt-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-sm font-medium text-muted-foreground">Relatives Information</h4>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const newRelatives = [...(formData.relatives || []), { name: "", relationship: "", phone: "" }];
+                            setFormData({ ...formData, relatives: newRelatives });
+                          }}
+                          className="flex items-center gap-1"
+                        >
+                          <Plus className="w-4 h-4" />
+                          Add Relative
+                        </Button>
+                      </div>
+                      {formData.relatives && formData.relatives.length > 0 ? (
+                        <div className="space-y-3 border rounded-lg p-4 bg-muted/30">
+                          {formData.relatives.map((relative: any, index: number) => (
+                            <div key={index} className="grid grid-cols-12 gap-2 items-end p-3 bg-background rounded-lg border">
+                              <div className="col-span-4 space-y-1">
+                                <Label htmlFor={`relative-name-${index}`} className="text-xs">Name</Label>
+                                <Input
+                                  id={`relative-name-${index}`}
+                                  value={relative.name || ""}
+                                  onChange={(e) => {
+                                    const newRelatives = [...formData.relatives];
+                                    newRelatives[index] = { ...newRelatives[index], name: e.target.value };
+                                    setFormData({ ...formData, relatives: newRelatives });
+                                  }}
+                                  placeholder="Relative name"
+                                  className="h-9"
+                                />
+                              </div>
+                              <div className="col-span-3 space-y-1">
+                                <Label htmlFor={`relative-relationship-${index}`} className="text-xs">Relationship</Label>
+                                <Input
+                                  id={`relative-relationship-${index}`}
+                                  value={relative.relationship || ""}
+                                  onChange={(e) => {
+                                    const newRelatives = [...formData.relatives];
+                                    newRelatives[index] = { ...newRelatives[index], relationship: e.target.value };
+                                    setFormData({ ...formData, relatives: newRelatives });
+                                  }}
+                                  placeholder="e.g., Brother"
+                                  className="h-9"
+                                />
+                              </div>
+                              <div className="col-span-4 space-y-1">
+                                <Label htmlFor={`relative-phone-${index}`} className="text-xs">Phone</Label>
+                                <Input
+                                  id={`relative-phone-${index}`}
+                                  value={relative.phone || ""}
+                                  onChange={(e) => {
+                                    const newRelatives = [...formData.relatives];
+                                    newRelatives[index] = { ...newRelatives[index], phone: e.target.value };
+                                    setFormData({ ...formData, relatives: newRelatives });
+                                  }}
+                                  placeholder="+255 XXX XXX XXX"
+                                  className="h-9"
+                                />
+                              </div>
+                              <div className="col-span-1">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    const newRelatives = formData.relatives.filter((_: any, i: number) => i !== index);
+                                    setFormData({ ...formData, relatives: newRelatives });
+                                  }}
+                                  className="h-9 w-9 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="border rounded-lg p-4 bg-muted/30 text-center text-sm text-muted-foreground">
+                          No relatives added. Click "Add Relative" to add one.
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="flex justify-end gap-2 pt-4 border-t">
@@ -1055,6 +2172,12 @@ const RegisterUsers = () => {
                     setShowForm(false); 
                     setEditUser(null); 
                     setSelectedSubjects([]);
+                    setPassportPicture(null);
+                    setPassportPreview(null);
+                    setCurrentPassportUrl(null);
+                    if (fileInputRef.current) {
+                      fileInputRef.current.value = "";
+                    }
                     setFormData({ 
                       name: "", 
                       email: "", 
@@ -1062,7 +2185,32 @@ const RegisterUsers = () => {
                       phone: "", 
                       department: "", 
                       password: "", 
-                      course_id: selectedCourse ? selectedCourse.id.toString() : "" 
+                      course_id: selectedCourse ? selectedCourse.id.toString() : "",
+                      date_of_birth: "",
+                      gender: "",
+                      tribe: "",
+                      religion: "",
+                      blood_group: "",
+                      national_id: "",
+                      birth_region: "",
+                      birth_district: "",
+                      birth_street: "",
+                      phone_2: "",
+                      profession: "",
+                      university: "",
+                      employment: "",
+                      other_education_level: "",
+                      other_education_university: "",
+                      skills: [],
+                      marital_status: "",
+                      spouse_name: "",
+                      spouse_phone: "",
+                      father_name: "",
+                      father_phone: "",
+                      mother_name: "",
+                      mother_phone: "",
+                      number_of_children: "",
+                      relatives: [],
                     });
                   }}
                 >
@@ -1080,6 +2228,73 @@ const RegisterUsers = () => {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* View Passport Picture Dialog */}
+      <Dialog open={showPassportDialog} onOpenChange={setShowPassportDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Passport Picture</DialogTitle>
+            <DialogDescription>
+              {viewingPassportUser?.name}'s passport size photo
+            </DialogDescription>
+          </DialogHeader>
+          {viewingPassportUser && (
+            <div className="space-y-4">
+              {viewingPassportUser.passport_picture ? (
+                <>
+                  <div className="flex justify-center">
+                    <img 
+                      src={`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/storage/${viewingPassportUser.passport_picture}`}
+                      alt={`${viewingPassportUser.name}'s passport picture`}
+                      className="max-w-full h-auto rounded-lg border-2 border-gray-300 shadow-lg"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = '/placeholder-image.png';
+                        (e.target as HTMLImageElement).alt = 'Image not found';
+                      }}
+                    />
+                  </div>
+                  <div className="text-center space-y-2">
+                    <p className="font-semibold">{viewingPassportUser.name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {viewingPassportUser.user_id || viewingPassportUser.email}
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-8 space-y-4">
+                  <div className="flex justify-center">
+                    <Image className="w-16 h-16 text-muted-foreground opacity-50" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-lg">No Passport Picture</p>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      {viewingPassportUser.name} doesn't have a passport picture uploaded yet.
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      You can upload one by editing the user.
+                    </p>
+                  </div>
+                </div>
+              )}
+              <div className="flex justify-end gap-2">
+                {viewingPassportUser.passport_picture && (
+                  <Button 
+                    variant="outline"
+                    onClick={handleDownloadPassport}
+                    className="border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-950"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Save Picture
+                  </Button>
+                )}
+                <Button onClick={() => setShowPassportDialog(false)}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Excel Import Dialog */}
       {canCreateUsers && (

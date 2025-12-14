@@ -18,6 +18,9 @@ use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\ActivityLogController;
 use App\Http\Controllers\Api\CommentController;
 use App\Http\Controllers\Api\AdminPermissionController;
+use App\Http\Controllers\Api\DisciplineIssueController;
+use App\Http\Controllers\Api\CourseMetadataController;
+use App\Http\Controllers\Api\MedicalRecordController;
 use Illuminate\Support\Facades\Route;
 
 // Public routes
@@ -38,6 +41,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('users', UserController::class);
     Route::get('/users/template/download', [UserController::class, 'downloadTemplate']);
     Route::post('/users/import/excel', [UserController::class, 'importFromExcel']);
+    Route::get('/users/{user}/passport-picture/download', [UserController::class, 'downloadPassportPicture']);
 
     // Courses
     Route::get('/courses/{course}/enrolled-users', [CourseController::class, 'enrolledUsers']);
@@ -101,5 +105,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/admin/permissions', [AdminPermissionController::class, 'index']);
     Route::put('/admin/permissions/{adminId}', [AdminPermissionController::class, 'update']);
     Route::get('/admin/permissions/my', [AdminPermissionController::class, 'myPermissions']);
+
+    // Discipline Issues (Admin and Super Admin)
+    Route::apiResource('discipline-issues', DisciplineIssueController::class);
+    Route::get('/discipline-issues/{disciplineIssue}/document/download', [DisciplineIssueController::class, 'downloadDocument']);
+    Route::post('/discipline-issues/{disciplineIssue}/approve', [DisciplineIssueController::class, 'approve']);
+    Route::post('/discipline-issues/{disciplineIssue}/reject', [DisciplineIssueController::class, 'reject']);
+
+    // Course Metadata (Super Admin only)
+    Route::apiResource('course-metadata', CourseMetadataController::class);
+
+    // Medical Records (Doctors and Admins)
+    Route::get('/medical-records/user/{userId}/latest', [MedicalRecordController::class, 'getLatestByUser']);
+    Route::apiResource('medical-records', MedicalRecordController::class);
 });
 

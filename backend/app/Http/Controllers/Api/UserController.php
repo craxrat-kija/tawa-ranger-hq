@@ -9,6 +9,7 @@ use App\Helpers\CourseHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -124,6 +125,7 @@ class UserController extends Controller
                     'phone' => $user->phone ?? null,
                     'department' => $user->department ?? null,
                     'avatar' => $user->avatar ?? null,
+                    'passport_picture' => $user->passport_picture ?? null,
                     'course_id' => $user->course_id ?? null,
                     'course_name' => $user->course->name ?? null,
                     'subjects' => $subjects,
@@ -224,6 +226,22 @@ class UserController extends Controller
 
             $user = User::create($userData);
 
+            // Handle supportive documents upload for doctors
+            if ($request->has('supportive_documents') && is_array($request->supportive_documents)) {
+                $documentPaths = [];
+                foreach ($request->supportive_documents as $document) {
+                    if ($document && $document->isValid()) {
+                        $fileName = time() . '_' . uniqid() . '_' . $document->getClientOriginalName();
+                        $filePath = $document->storeAs('supportive_documents', $fileName, 'public');
+                        $documentPaths[] = $filePath;
+                    }
+                }
+                if (!empty($documentPaths)) {
+                    $user->supportive_documents = json_encode($documentPaths);
+                    $user->save();
+                }
+            }
+
             // Attach subjects if provided and user is instructor
             if ($validated['role'] === 'instructor' && isset($validated['subject_ids']) && !empty($validated['subject_ids'])) {
                 $user->subjects()->attach($validated['subject_ids']);
@@ -298,6 +316,48 @@ class UserController extends Controller
                 ], 403);
             }
             
+            // Pre-process JSON strings from FormData before validation
+            $requestData = $request->all();
+            
+            // Handle JSON strings for skills (when sent via FormData)
+            if ($request->has('skills') && is_string($request->input('skills'))) {
+                $skillsJson = json_decode($request->input('skills'), true);
+                if (json_last_error() === JSON_ERROR_NONE && is_array($skillsJson)) {
+                    $requestData['skills'] = $skillsJson;
+                }
+            }
+            
+            // Handle JSON strings for relatives (when sent via FormData)
+            if ($request->has('relatives')) {
+                if (is_string($request->input('relatives'))) {
+                    // Handle JSON string from FormData
+                    $relativesJson = json_decode($request->input('relatives'), true);
+                    if (json_last_error() === JSON_ERROR_NONE && is_array($relativesJson)) {
+                        // Filter out empty relatives
+                        $filteredRelatives = array_filter($relativesJson, function($rel) {
+                            return !empty($rel['name']) && trim($rel['name']) !== '';
+                        });
+                        $requestData['relatives'] = !empty($filteredRelatives) ? array_values($filteredRelatives) : [];
+                    } else {
+                        $requestData['relatives'] = [];
+                    }
+                } elseif (is_array($request->input('relatives'))) {
+                    // Handle direct array from JSON request
+                    $filteredRelatives = array_filter($request->input('relatives'), function($rel) {
+                        return !empty($rel['name']) && trim($rel['name']) !== '';
+                    });
+                    $requestData['relatives'] = !empty($filteredRelatives) ? array_values($filteredRelatives) : [];
+                } else {
+                    $requestData['relatives'] = [];
+                }
+            } else {
+                // If relatives is not provided, set to empty array
+                $requestData['relatives'] = [];
+            }
+            
+            // Merge the processed data back into the request
+            $request->merge($requestData);
+            
             $validated = $request->validate([
                 'name' => 'sometimes|string|max:255',
                 'email' => 'sometimes|string|email|max:255',
@@ -306,12 +366,84 @@ class UserController extends Controller
                 'phone' => 'nullable|string',
                 'department' => 'nullable|string',
                 'avatar' => 'nullable|string',
+                'passport_picture' => 'nullable|image|max:2048', // 2MB max for passport pictures
                 'subject_ids' => 'nullable|array',
                 'subject_ids.*' => 'exists:subjects,id',
+                // Extended fields
+                'date_of_birth' => 'nullable|date',
+                'gender' => 'nullable|string|max:255',
+                'tribe' => 'nullable|string|max:255',
+                'religion' => 'nullable|string|max:255',
+                'blood_group' => 'nullable|string|max:255',
+                'national_id' => 'nullable|string|max:255',
+                'birth_region' => 'nullable|string|max:255',
+                'birth_district' => 'nullable|string|max:255',
+                'birth_street' => 'nullable|string|max:255',
+                'phone_2' => 'nullable|string|max:255',
+                'profession' => 'nullable|string|max:255',
+                'university' => 'nullable|string|max:255',
+                'employment' => 'nullable|string|max:255',
+                'other_education_level' => 'nullable|string|max:255',
+                'other_education_university' => 'nullable|string|max:255',
+                'skills' => 'nullable|array',
+                'marital_status' => 'nullable|string|max:255',
+                'spouse_name' => 'nullable|string|max:255',
+                'spouse_phone' => 'nullable|string|max:255',
+                'father_name' => 'nullable|string|max:255',
+                'father_phone' => 'nullable|string|max:255',
+                'mother_name' => 'nullable|string|max:255',
+                'mother_phone' => 'nullable|string|max:255',
+                'number_of_children' => 'nullable|integer|min:0',
+                'relatives' => 'nullable|array',
             ]);
 
             if (isset($validated['password'])) {
                 $validated['password'] = Hash::make($validated['password']);
+            }
+            
+            // Set relatives to null if empty array (to clear existing relatives)
+            if (isset($validated['relatives']) && empty($validated['relatives'])) {
+                $validated['relatives'] = null;
+            }
+
+            // Handle passport picture upload
+            if ($request->hasFile('passport_picture')) {
+                // Delete old passport picture if exists
+                if ($user->passport_picture && Storage::disk('public')->exists($user->passport_picture)) {
+                    Storage::disk('public')->delete($user->passport_picture);
+                }
+                
+                $file = $request->file('passport_picture');
+                $fileName = time() . '_' . $file->getClientOriginalName();
+                $filePath = $file->storeAs('passport_pictures', $fileName, 'public');
+                $validated['passport_picture'] = $filePath;
+            }
+
+            // Handle supportive documents upload for doctors
+            if ($request->has('supportive_documents') && is_array($request->supportive_documents)) {
+                // Delete old documents if they exist
+                if ($user->supportive_documents) {
+                    $oldDocuments = json_decode($user->supportive_documents, true);
+                    if (is_array($oldDocuments)) {
+                        foreach ($oldDocuments as $oldDoc) {
+                            if (Storage::disk('public')->exists($oldDoc)) {
+                                Storage::disk('public')->delete($oldDoc);
+                            }
+                        }
+                    }
+                }
+                
+                $documentPaths = [];
+                foreach ($request->supportive_documents as $document) {
+                    if ($document && $document->isValid()) {
+                        $fileName = time() . '_' . uniqid() . '_' . $document->getClientOriginalName();
+                        $filePath = $document->storeAs('supportive_documents', $fileName, 'public');
+                        $documentPaths[] = $filePath;
+                    }
+                }
+                if (!empty($documentPaths)) {
+                    $validated['supportive_documents'] = json_encode($documentPaths);
+                }
             }
 
             // Remove subject_ids from validated array before updating user
@@ -374,19 +506,93 @@ class UserController extends Controller
         ]);
     }
 
+    public function downloadPassportPicture(Request $request, User $user)
+    {
+        // Check if user belongs to the same course
+        $currentUser = $request->user();
+        $courseId = CourseHelper::getCurrentCourseId($currentUser);
+        
+        if ($courseId && $user->course_id !== $courseId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Access denied. User does not belong to your course.',
+            ], 403);
+        }
+
+        if (!$user->passport_picture) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User does not have a passport picture.',
+            ], 404);
+        }
+
+        $filePath = storage_path('app/public/' . $user->passport_picture);
+        
+        if (!file_exists($filePath)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Passport picture file not found.',
+            ], 404);
+        }
+
+        // Extract filename from path
+        $fileName = basename($user->passport_picture);
+        
+        return response()->download($filePath, $fileName, [
+            'Content-Type' => 'image/jpeg',
+        ]);
+    }
+
     public function downloadTemplate()
     {
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         
-        // Set headers
+        // Set headers - Required fields first, then optional extended fields
         $headers = [
-            'Name',
-            'Email',
-            'Phone',
-            'Department',
-            'Role',
-            'User ID (Optional - will be auto-generated if empty)',
+            'Name', // Required
+            'Email', // Required
+            'Phone', // Optional
+            'Department', // Optional
+            'Role', // Required (trainee, instructor, doctor, admin)
+            'User ID (Optional - will be auto-generated if empty)', // Optional
+            // Extended fields (all optional)
+            'Date of Birth (YYYY-MM-DD)', // Tarehe ya Kuzaliwa
+            'Gender (male/female/other)', // Jinsia
+            'Tribe', // Kabila
+            'Religion', // Dini
+            'Blood Group', // Kundi la Damu
+            'National ID', // National I.D
+            'Birth Region', // Mahali Ulikozaliwa, Mkoa
+            'Birth District', // Wilaya
+            'Birth Street/Ward', // Mtaa
+            'Phone 2', // Namba za Simu (2)
+            'Profession', // Taaluma
+            'University', // Chuo
+            'Employment', // Ajira
+            'Other Education Level', // Kiwango Kingine cha Elimu
+            'Other Education University', // Chuo
+            'Skill 1', // Ujuzi 1
+            'Skill 1 University', // Chuo
+            'Skill 2', // Ujuzi 2
+            'Skill 2 University', // Chuo
+            'Marital Status (single/married/divorced/widowed)', // Hali ya Ndoa
+            'Spouse Name', // Mke/Mme
+            'Spouse Phone', // Simu No
+            'Father Name', // Baba
+            'Father Phone', // Simu No
+            'Mother Name', // Mama
+            'Mother Phone', // Simu No
+            'Number of Children', // Idadi ya Watoto wa Mkurufunzi
+            'Relative 1 Name', // Ndugu wa Karibu wa Mkurufunzi
+            'Relative 1 Relationship', // Mahusiano
+            'Relative 1 Phone', // Simu No
+            'Relative 2 Name',
+            'Relative 2 Relationship',
+            'Relative 2 Phone',
+            'Relative 3 Name',
+            'Relative 3 Relationship',
+            'Relative 3 Phone',
         ];
         
         $sheet->fromArray($headers, null, 'A1');
@@ -398,32 +604,41 @@ class UserController extends Controller
                 'fillType' => Fill::FILL_SOLID,
                 'startColor' => ['rgb' => '4472C4']
             ],
-            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
+            'wrapText' => true,
         ];
-        $sheet->getStyle('A1:F1')->applyFromArray($headerStyle);
+        $lastColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(count($headers));
+        $sheet->getStyle('A1:' . $lastColumn . '1')->applyFromArray($headerStyle);
+        $sheet->getRowDimension(1)->setRowHeight(30);
         
         // Set column widths
-        $sheet->getColumnDimension('A')->setWidth(25);
-        $sheet->getColumnDimension('B')->setWidth(30);
-        $sheet->getColumnDimension('C')->setWidth(20);
-        $sheet->getColumnDimension('D')->setWidth(25);
-        $sheet->getColumnDimension('E')->setWidth(15);
-        $sheet->getColumnDimension('F')->setWidth(30);
-        
-        // Add example row
-        $exampleRow = [
-            'John Doe',
-            'john.doe@example.com',
-            '+255 712 345 678',
-            'Field Operations',
-            'trainee',
-            '',
+        $columnWidths = [
+            'A' => 25, 'B' => 30, 'C' => 20, 'D' => 25, 'E' => 15, 'F' => 30,
+            'G' => 18, 'H' => 20, 'I' => 20, 'J' => 20, 'K' => 15, 'L' => 20,
+            'M' => 20, 'N' => 20, 'O' => 20, 'P' => 20, 'Q' => 20, 'R' => 25,
+            'S' => 30, 'T' => 25, 'U' => 25, 'V' => 20, 'W' => 25, 'X' => 20,
+            'Y' => 25, 'Z' => 20, 'AA' => 20, 'AB' => 20, 'AC' => 20, 'AD' => 20,
+            'AE' => 20, 'AF' => 20, 'AG' => 20, 'AH' => 20, 'AI' => 20, 'AJ' => 20,
+            'AK' => 20, 'AL' => 20, 'AM' => 20, 'AN' => 20, 'AO' => 20, 'AP' => 20,
         ];
-        $sheet->fromArray($exampleRow, null, 'A2');
+        foreach ($columnWidths as $col => $width) {
+            $sheet->getColumnDimension($col)->setWidth($width);
+        }
+        
+        // Add example row with empty values for optional fields
+        $exampleRow = array_fill(0, count($headers), '');
+        $exampleRow[0] = 'John Doe';
+        $exampleRow[1] = 'john.doe@example.com';
+        $exampleRow[2] = '+255 712 345 678';
+        $exampleRow[3] = 'Field Operations';
+        $exampleRow[4] = 'trainee';
+        // Leave other fields empty as examples
+        
+        $sheet->fromArray([$exampleRow], null, 'A2');
         
         // Add note
-        $sheet->setCellValue('A4', 'Note: Role must be one of: trainee, instructor, doctor, admin');
-        $sheet->mergeCells('A4:F4');
+        $sheet->setCellValue('A4', 'Note: Role must be one of: trainee, instructor, doctor, admin. All fields except Name, Email, and Role are optional.');
+        $sheet->mergeCells('A4:' . $lastColumn . '4');
         $sheet->getStyle('A4')->getFont()->setItalic(true);
         $sheet->getStyle('A4')->getFont()->getColor()->setRGB('666666');
         
@@ -510,10 +725,49 @@ class UserController extends Controller
                     continue;
                 }
                 
+                // Required fields
                 $phone = trim($row[2] ?? '');
                 $department = trim($row[3] ?? '');
                 $role = strtolower(trim($row[4] ?? 'trainee'));
                 $userId = trim($row[5] ?? '');
+                
+                // Extended fields (all optional)
+                $dateOfBirth = !empty($row[6]) ? trim($row[6]) : null;
+                $gender = !empty($row[7]) ? strtolower(trim($row[7])) : null;
+                $tribe = !empty($row[8]) ? trim($row[8]) : null;
+                $religion = !empty($row[9]) ? trim($row[9]) : null;
+                $bloodGroup = !empty($row[10]) ? trim($row[10]) : null;
+                $nationalId = !empty($row[11]) ? trim($row[11]) : null;
+                $birthRegion = !empty($row[12]) ? trim($row[12]) : null;
+                $birthDistrict = !empty($row[13]) ? trim($row[13]) : null;
+                $birthStreet = !empty($row[14]) ? trim($row[14]) : null;
+                $phone2 = !empty($row[15]) ? trim($row[15]) : null;
+                $profession = !empty($row[16]) ? trim($row[16]) : null;
+                $university = !empty($row[17]) ? trim($row[17]) : null;
+                $employment = !empty($row[18]) ? trim($row[18]) : null;
+                $otherEducationLevel = !empty($row[19]) ? trim($row[19]) : null;
+                $otherEducationUniversity = !empty($row[20]) ? trim($row[20]) : null;
+                $skill1 = !empty($row[21]) ? trim($row[21]) : null;
+                $skill1University = !empty($row[22]) ? trim($row[22]) : null;
+                $skill2 = !empty($row[23]) ? trim($row[23]) : null;
+                $skill2University = !empty($row[24]) ? trim($row[24]) : null;
+                $maritalStatus = !empty($row[25]) ? strtolower(trim($row[25])) : null;
+                $spouseName = !empty($row[26]) ? trim($row[26]) : null;
+                $spousePhone = !empty($row[27]) ? trim($row[27]) : null;
+                $fatherName = !empty($row[28]) ? trim($row[28]) : null;
+                $fatherPhone = !empty($row[29]) ? trim($row[29]) : null;
+                $motherName = !empty($row[30]) ? trim($row[30]) : null;
+                $motherPhone = !empty($row[31]) ? trim($row[31]) : null;
+                $numberOfChildren = !empty($row[32]) ? (int)trim($row[32]) : null;
+                $relative1Name = !empty($row[33]) ? trim($row[33]) : null;
+                $relative1Relationship = !empty($row[34]) ? trim($row[34]) : null;
+                $relative1Phone = !empty($row[35]) ? trim($row[35]) : null;
+                $relative2Name = !empty($row[36]) ? trim($row[36]) : null;
+                $relative2Relationship = !empty($row[37]) ? trim($row[37]) : null;
+                $relative2Phone = !empty($row[38]) ? trim($row[38]) : null;
+                $relative3Name = !empty($row[39]) ? trim($row[39]) : null;
+                $relative3Relationship = !empty($row[40]) ? trim($row[40]) : null;
+                $relative3Phone = !empty($row[41]) ? trim($row[41]) : null;
                 
                 // Validate role
                 if (!in_array($role, ['trainee', 'instructor', 'doctor', 'admin'])) {
@@ -527,7 +781,28 @@ class UserController extends Controller
                     continue;
                 }
                 
-                // Email no longer needs to be unique - skip this check
+                // Validate gender if provided
+                if ($gender && !in_array($gender, ['male', 'female', 'other'])) {
+                    $errors[] = "Row " . ($i + 1) . ": Invalid gender '{$gender}'. Must be male, female, or other.";
+                    continue;
+                }
+                
+                // Validate marital status if provided
+                if ($maritalStatus && !in_array($maritalStatus, ['single', 'married', 'divorced', 'widowed'])) {
+                    $errors[] = "Row " . ($i + 1) . ": Invalid marital status '{$maritalStatus}'. Must be single, married, divorced, or widowed.";
+                    continue;
+                }
+                
+                // Validate date of birth if provided
+                $dateOfBirthFormatted = null;
+                if ($dateOfBirth) {
+                    try {
+                        $dateOfBirthFormatted = \Carbon\Carbon::parse($dateOfBirth)->format('Y-m-d');
+                    } catch (\Exception $e) {
+                        $errors[] = "Row " . ($i + 1) . ": Invalid date of birth format '{$dateOfBirth}'. Use YYYY-MM-DD format.";
+                        continue;
+                    }
+                }
                 
                 // Generate user_id if not provided
                 if (empty($userId)) {
@@ -540,6 +815,39 @@ class UserController extends Controller
                     }
                 }
                 
+                // Build skills array
+                $skills = [];
+                if ($skill1) {
+                    $skills[] = ['skill' => $skill1, 'university' => $skill1University ?: null];
+                }
+                if ($skill2) {
+                    $skills[] = ['skill' => $skill2, 'university' => $skill2University ?: null];
+                }
+                
+                // Build relatives array
+                $relatives = [];
+                if ($relative1Name) {
+                    $relatives[] = [
+                        'name' => $relative1Name,
+                        'relationship' => $relative1Relationship ?: null,
+                        'phone' => $relative1Phone ?: null,
+                    ];
+                }
+                if ($relative2Name) {
+                    $relatives[] = [
+                        'name' => $relative2Name,
+                        'relationship' => $relative2Relationship ?: null,
+                        'phone' => $relative2Phone ?: null,
+                    ];
+                }
+                if ($relative3Name) {
+                    $relatives[] = [
+                        'name' => $relative3Name,
+                        'relationship' => $relative3Relationship ?: null,
+                        'phone' => $relative3Phone ?: null,
+                    ];
+                }
+                
                 // Create user
                 $userData = [
                     'name' => $name,
@@ -549,6 +857,32 @@ class UserController extends Controller
                     'phone' => $phone ?: null,
                     'department' => $department ?: null,
                     'course_id' => $courseId,
+                    // Extended fields
+                    'date_of_birth' => $dateOfBirthFormatted,
+                    'gender' => $gender,
+                    'tribe' => $tribe,
+                    'religion' => $religion,
+                    'blood_group' => $bloodGroup,
+                    'national_id' => $nationalId,
+                    'birth_region' => $birthRegion,
+                    'birth_district' => $birthDistrict,
+                    'birth_street' => $birthStreet,
+                    'phone_2' => $phone2,
+                    'profession' => $profession,
+                    'university' => $university,
+                    'employment' => $employment,
+                    'other_education_level' => $otherEducationLevel,
+                    'other_education_university' => $otherEducationUniversity,
+                    'skills' => !empty($skills) ? $skills : null,
+                    'marital_status' => $maritalStatus,
+                    'spouse_name' => $spouseName,
+                    'spouse_phone' => $spousePhone,
+                    'father_name' => $fatherName,
+                    'father_phone' => $fatherPhone,
+                    'mother_name' => $motherName,
+                    'mother_phone' => $motherPhone,
+                    'number_of_children' => $numberOfChildren,
+                    'relatives' => !empty($relatives) ? $relatives : null,
                 ];
                 
                 // Set password based on role

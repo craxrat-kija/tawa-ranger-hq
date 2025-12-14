@@ -6,21 +6,18 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class Patient extends Model
+class MedicalRecord extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'full_name',
-        'email',
-        'phone',
-        'blood_type',
-        'allergies',
-        'medical_history',
-        'emergency_contact',
-        'registered_date',
+        'user_id',
         'course_id',
+        'doctor_id',
+        // Personal Particulars
+        'emergency_contact',
         // Medical Examination Fields
+        'blood_type',
         'blood_pressure',
         'malaria_test',
         'sugar_test',
@@ -31,30 +28,34 @@ class Patient extends Model
         'hb_hemoglobin',
         'hiv_status',
         // Medical History Fields
+        'allergies',
+        'medical_history',
         'chronic_illnesses',
         'trauma_history',
+        'attachments',
+        'record_date',
     ];
 
     protected function casts(): array
     {
         return [
-            'registered_date' => 'date',
+            'record_date' => 'date',
         ];
     }
 
     // Relationships
-    public function course()
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function course(): BelongsTo
     {
         return $this->belongsTo(Course::class, 'course_id');
     }
 
-    public function medicalReports()
+    public function doctor(): BelongsTo
     {
-        return $this->hasMany(MedicalReport::class);
-    }
-
-    public function attendanceRecords()
-    {
-        return $this->hasMany(AttendanceRecord::class);
+        return $this->belongsTo(User::class, 'doctor_id');
     }
 }

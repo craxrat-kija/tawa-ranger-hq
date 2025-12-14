@@ -10,8 +10,9 @@ import { useToast } from "@/hooks/use-toast";
 import { RotatingLogo } from "@/components/RotatingLogo";
 import { BookOpen, Save, ArrowLeft, List, Info } from "lucide-react";
 import { Loading } from "@/components/Loading";
-import { coursesApi } from "@/lib/api";
+import { coursesApi, courseMetadataApi } from "@/lib/api";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const CreateCourse = () => {
   const navigate = useNavigate();
@@ -20,10 +21,16 @@ const CreateCourse = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [existingCourses, setExistingCourses] = useState<any[]>([]);
   const [loadingCourses, setLoadingCourses] = useState(true);
+  const [courseCodes, setCourseCodes] = useState<any[]>([]);
+  const [courseNames, setCourseNames] = useState<any[]>([]);
+  const [courseTypes, setCourseTypes] = useState<any[]>([]);
+  const [locations, setLocations] = useState<any[]>([]);
+  const [loadingMetadata, setLoadingMetadata] = useState(true);
   const [formData, setFormData] = useState({
     courseCode: "",
     courseName: "",
     courseType: "",
+    location: "",
     courseDuration: "",
     courseDescription: "",
     startDate: "",
@@ -47,8 +54,9 @@ const CreateCourse = () => {
         });
         navigate("/");
       } else if (isAuthenticated && (user?.role === "admin" || user?.role === "super_admin")) {
-        // Load existing courses
+        // Load existing courses and metadata
         loadExistingCourses();
+        loadCourseMetadata();
       }
     }
   }, [isAuthenticated, authLoading, user, navigate, toast]);
@@ -75,6 +83,26 @@ const CreateCourse = () => {
       console.error('Error loading courses:', error);
     } finally {
       setLoadingCourses(false);
+    }
+  };
+
+  const loadCourseMetadata = async () => {
+    try {
+      setLoadingMetadata(true);
+      const [codes, names, types, locs] = await Promise.all([
+        courseMetadataApi.getAll('course_code').catch(() => []),
+        courseMetadataApi.getAll('name'),
+        courseMetadataApi.getAll('course_type'),
+        courseMetadataApi.getAll('location'),
+      ]);
+      setCourseCodes(Array.isArray(codes) ? codes : []);
+      setCourseNames(Array.isArray(names) ? names : []);
+      setCourseTypes(Array.isArray(types) ? types : []);
+      setLocations(Array.isArray(locs) ? locs : []);
+    } catch (error) {
+      console.error('Error loading course metadata:', error);
+    } finally {
+      setLoadingMetadata(false);
     }
   };
 
@@ -108,6 +136,7 @@ const CreateCourse = () => {
           name: formData.courseName,
           type: formData.courseType,
           duration: formData.courseDuration,
+          location: formData.location,
           description: formData.courseDescription,
           start_date: formData.startDate,
           status: 'upcoming',
@@ -136,6 +165,7 @@ const CreateCourse = () => {
         courseCode: "",
         courseName: "",
         courseType: "",
+        location: "",
         courseDuration: "",
         courseDescription: "",
         startDate: "",
@@ -225,6 +255,24 @@ const CreateCourse = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="courseCode">Course Code *</Label>
+                    {courseCodes.length > 0 ? (
+                      <Select
+                        value={formData.courseCode}
+                        onValueChange={(value) => setFormData({ ...formData, courseCode: value.toUpperCase() })}
+                        required
+                      >
+                        <SelectTrigger id="courseCode">
+                          <SelectValue placeholder="Select course code" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {courseCodes.map((item) => (
+                            <SelectItem key={item.id} value={item.value}>
+                              {item.value}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
                     <Input
                       id="courseCode"
                       value={formData.courseCode}
@@ -234,11 +282,34 @@ const CreateCourse = () => {
                       pattern="[A-Z0-9]+"
                       title="Course code should contain only uppercase letters and numbers"
                     />
-                    <p className="text-xs text-muted-foreground">Unique identifier for this course (e.g., TC2024)</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      {courseCodes.length === 0 && !loadingMetadata
+                        ? "No course codes available. Add them in Course Metadata or type manually."
+                        : "Unique identifier for this course (e.g., TC2024)"}
+                    </p>
                   </div>
                   
                   <div className="space-y-2">
                     <Label htmlFor="courseName">Course Name *</Label>
+                    {courseNames.length > 0 ? (
+                      <Select
+                        value={formData.courseName}
+                        onValueChange={(value) => setFormData({ ...formData, courseName: value })}
+                        required
+                      >
+                        <SelectTrigger id="courseName">
+                          <SelectValue placeholder="Select course name" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {courseNames.map((item) => (
+                            <SelectItem key={item.id} value={item.value}>
+                              {item.value}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
                     <Input
                       id="courseName"
                       value={formData.courseName}
@@ -246,10 +317,34 @@ const CreateCourse = () => {
                       placeholder="e.g., Transformation Course"
                       required
                     />
+                    )}
+                    {courseNames.length === 0 && !loadingMetadata && (
+                      <p className="text-xs text-muted-foreground">
+                        No course names available. Add them in Course Metadata.
+                      </p>
+                    )}
                   </div>
                   
                   <div className="space-y-2">
                     <Label htmlFor="courseType">Course Type *</Label>
+                    {courseTypes.length > 0 ? (
+                      <Select
+                        value={formData.courseType}
+                        onValueChange={(value) => setFormData({ ...formData, courseType: value })}
+                        required
+                      >
+                        <SelectTrigger id="courseType">
+                          <SelectValue placeholder="Select course type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {courseTypes.map((item) => (
+                            <SelectItem key={item.id} value={item.value}>
+                              {item.value}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
                     <Input
                       id="courseType"
                       value={formData.courseType}
@@ -257,6 +352,47 @@ const CreateCourse = () => {
                       placeholder="e.g., Transformation, Special, Recruit, Refresher"
                       required
                     />
+                    )}
+                    {courseTypes.length === 0 && !loadingMetadata && (
+                      <p className="text-xs text-muted-foreground">
+                        No course types available. Add them in Course Metadata.
+                      </p>
+                    )}
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="location">Location *</Label>
+                    {locations.length > 0 ? (
+                      <Select
+                        value={formData.location}
+                        onValueChange={(value) => setFormData({ ...formData, location: value })}
+                        required
+                      >
+                        <SelectTrigger id="location">
+                          <SelectValue placeholder="Select location" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {locations.map((item) => (
+                            <SelectItem key={item.id} value={item.value}>
+                              {item.value}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        id="location"
+                        value={formData.location}
+                        onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                        placeholder="e.g., Fort Ikoma, Arusha"
+                        required
+                      />
+                    )}
+                    {locations.length === 0 && !loadingMetadata && (
+                      <p className="text-xs text-muted-foreground">
+                        No locations available. Add them in Course Metadata.
+                      </p>
+                    )}
                   </div>
                   
                   <div className="space-y-2">

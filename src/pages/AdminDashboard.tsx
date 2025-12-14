@@ -13,6 +13,8 @@ import Timetable from "./Timetable";
 import Reports from "./Reports";
 import ChatBoard from "./ChatBoard";
 import RegisterUsers from "./RegisterUsers";
+import UserProfile from "./UserProfile";
+import UserProfiles from "./UserProfiles";
 import Assessments from "./Assessments";
 import Results from "./Results";
 import Subjects from "./Subjects";
@@ -20,6 +22,8 @@ import DoctorActivities from "./DoctorActivities";
 import AdminDoctorView from "./AdminDoctorView";
 import Setup from "./Setup";
 import AdminSettings from "./AdminSettings";
+import DisciplineIssues from "./DisciplineIssues";
+import CourseMetadata from "./CourseMetadata";
 import { lazy, Suspense } from "react";
 import { Loader2 } from "lucide-react";
 
@@ -51,6 +55,9 @@ import {
   Box,
   ChevronDown,
   ChevronRight,
+  AlertTriangle,
+  Tag,
+  User,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -344,11 +351,11 @@ const AdminDashboard = () => {
       label: "Reports & Analytics",
       items: [
         { icon: Box, label: "Reports", path: `${basePath}/reports`, permission: "can_manage_reports" },
-        ...(isSuperAdmin ? [
-          { icon: FileBarChart, label: "System Report", path: `${basePath}/system-report`, permission: null },
-        ] : [
-          { icon: FileBarChart, label: "Course Report", path: `${basePath}/system-report`, permission: "can_manage_reports" },
-        ]),
+    ...(isSuperAdmin ? [
+      { icon: FileBarChart, label: "System Report", path: `${basePath}/system-report`, permission: null },
+    ] : [
+      { icon: FileBarChart, label: "Course Report", path: `${basePath}/system-report`, permission: "can_manage_reports" },
+    ]),
       ].filter(item => shouldShowItem(item.permission)),
       separator: true
     },
@@ -365,9 +372,12 @@ const AdminDashboard = () => {
       icon: Settings,
       label: "Administration",
       items: [
-        { icon: Users, label: "Manage Users", path: `${basePath}/users`, permission: "can_manage_users" },
+    { icon: Users, label: "Manage Users", path: `${basePath}/users`, permission: "can_manage_users" },
+        { icon: User, label: "User Profiles", path: `${basePath}/user-profiles`, permission: "can_manage_users" },
+        { icon: AlertTriangle, label: "Discipline Issues", path: `${basePath}/discipline-issues`, permission: null },
         ...(isSuperAdmin ? [
           { icon: PlusCircle, label: "Create Course & Admin", path: `${basePath}/setup`, permission: null },
+          { icon: Tag, label: "Course Metadata", path: `${basePath}/course-metadata`, permission: null },
           { icon: Settings, label: "Admin Settings", path: `${basePath}/settings`, permission: null },
         ] : []),
       ].filter(item => shouldShowItem(item.permission)),
@@ -380,8 +390,8 @@ const AdminDashboard = () => {
       icon: Stethoscope,
       label: "Medical",
       items: [
-        { icon: Activity, label: "Doctor Activities", path: `${basePath}/activities`, permission: "can_manage_activities" },
-        { icon: Stethoscope, label: "Doctor Dashboard View", path: `${basePath}/doctor-view`, permission: "can_view_doctor_dashboard" },
+    { icon: Activity, label: "Doctor Activities", path: `${basePath}/activities`, permission: "can_manage_activities" },
+    { icon: Stethoscope, label: "Doctor Dashboard View", path: `${basePath}/doctor-view`, permission: "can_view_doctor_dashboard" },
       ].filter(item => shouldShowItem(item.permission)),
       separator: false
     },
@@ -426,7 +436,7 @@ const AdminDashboard = () => {
                     {showSeparator && (
                       <div className="my-2 mx-2 border-t border-white/10"></div>
                     )}
-                    <Link
+              <Link
                       to={group.item.path}
                       className="flex items-center gap-3 px-4 py-2.5 text-white hover:bg-gradient-to-r hover:from-[hsl(120,45%,32%)] hover:via-[hsl(45,40%,38%)] hover:to-[hsl(30,45%,28%)] hover:shadow-lg rounded-lg transition-all group border border-transparent hover:border-[hsl(45,50%,45%)]/40 active:scale-[0.98]"
                     >
@@ -470,13 +480,13 @@ const AdminDashboard = () => {
                         {group.items.map((item, itemIdx) => (
                           <Link
                             key={itemIdx}
-                            to={item.path}
+                to={item.path}
                             className="flex items-center gap-2.5 px-3 py-1.5 text-white/80 hover:text-white hover:bg-white/10 rounded-md transition-all group border border-transparent hover:border-white/15 active:scale-[0.98]"
-                          >
+              >
                             <item.icon className="w-4 h-4 group-hover:scale-110 transition-transform flex-shrink-0" />
                             <span className="font-medium text-xs">{item.label}</span>
-                          </Link>
-                        ))}
+              </Link>
+            ))}
                       </div>
                     </CollapsibleContent>
                   </Collapsible>
@@ -580,6 +590,7 @@ const AdminDashboard = () => {
             {isSuperAdmin && (
               <>
                 <Route path="/setup" element={<Setup />} />
+                <Route path="/course-metadata" element={<CourseMetadata />} />
                 <Route path="/settings" element={<AdminSettings />} />
               </>
             )}
@@ -604,9 +615,13 @@ const AdminDashboard = () => {
             {hasPermission("can_manage_users") && (
               <>
             <Route path="/users" element={<RegisterUsers />} />
-                <Route path="/trainees" element={<RegisterUsers />} />
+            <Route path="/trainees" element={<RegisterUsers />} />
+            <Route path="/user-profiles" element={<UserProfiles />} />
+            <Route path="/users/:userId/profile" element={<UserProfile />} />
               </>
             )}
+            {/* Discipline Issues - accessible by admin and super admin */}
+            <Route path="/discipline-issues" element={<DisciplineIssues />} />
             {hasPermission("can_manage_subjects") && (
             <Route path="/subjects" element={<Subjects />} />
             )}

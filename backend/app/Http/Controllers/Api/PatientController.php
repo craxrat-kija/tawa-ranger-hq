@@ -71,6 +71,19 @@ class PatientController extends Controller
                 'allergies' => 'nullable|string',
                 'medical_history' => 'nullable|string',
                 'emergency_contact' => 'required|string',
+                // Medical Examination Fields
+                'blood_pressure' => 'nullable|string',
+                'malaria_test' => 'nullable|string',
+                'sugar_test' => 'nullable|string',
+                'hepatitis_test' => 'nullable|string',
+                'pregnancy_test' => 'nullable|string',
+                'weight' => 'nullable|string',
+                'height' => 'nullable|string',
+                'hb_hemoglobin' => 'nullable|string',
+                'hiv_status' => 'nullable|string',
+                // Medical History Fields
+                'chronic_illnesses' => 'nullable|string',
+                'trauma_history' => 'nullable|string',
             ]);
 
             // Check if patient already exists for this user
@@ -92,6 +105,19 @@ class PatientController extends Controller
                 'emergency_contact' => $validated['emergency_contact'],
                 'registered_date' => now(),
                 'course_id' => $courseId,
+                // Medical Examination Fields
+                'blood_pressure' => $validated['blood_pressure'] ?? null,
+                'malaria_test' => $validated['malaria_test'] ?? null,
+                'sugar_test' => $validated['sugar_test'] ?? null,
+                'hepatitis_test' => $validated['hepatitis_test'] ?? null,
+                'pregnancy_test' => $validated['pregnancy_test'] ?? null,
+                'weight' => $validated['weight'] ?? null,
+                'height' => $validated['height'] ?? null,
+                'hb_hemoglobin' => $validated['hb_hemoglobin'] ?? null,
+                'hiv_status' => $validated['hiv_status'] ?? null,
+                // Medical History Fields
+                'chronic_illnesses' => $validated['chronic_illnesses'] ?? null,
+                'trauma_history' => $validated['trauma_history'] ?? null,
             ]);
         } else {
             // Traditional patient creation (backwards compatibility)
@@ -103,6 +129,19 @@ class PatientController extends Controller
                 'allergies' => 'nullable|string',
                 'medical_history' => 'nullable|string',
                 'emergency_contact' => 'required|string',
+                // Medical Examination Fields
+                'blood_pressure' => 'nullable|string',
+                'malaria_test' => 'nullable|string',
+                'sugar_test' => 'nullable|string',
+                'hepatitis_test' => 'nullable|string',
+                'pregnancy_test' => 'nullable|string',
+                'weight' => 'nullable|string',
+                'height' => 'nullable|string',
+                'hb_hemoglobin' => 'nullable|string',
+                'hiv_status' => 'nullable|string',
+                // Medical History Fields
+                'chronic_illnesses' => 'nullable|string',
+                'trauma_history' => 'nullable|string',
             ]);
 
             $patient = Patient::create([
@@ -180,6 +219,19 @@ class PatientController extends Controller
             'allergies' => 'nullable|string',
             'medical_history' => 'nullable|string',
             'emergency_contact' => 'sometimes|string',
+            // Medical Examination Fields
+            'blood_pressure' => 'nullable|string',
+            'malaria_test' => 'nullable|string',
+            'sugar_test' => 'nullable|string',
+            'hepatitis_test' => 'nullable|string',
+            'pregnancy_test' => 'nullable|string',
+            'weight' => 'nullable|string',
+            'height' => 'nullable|string',
+            'hb_hemoglobin' => 'nullable|string',
+            'hiv_status' => 'nullable|string',
+            // Medical History Fields
+            'chronic_illnesses' => 'nullable|string',
+            'trauma_history' => 'nullable|string',
         ]);
 
         $patient->update($validated);

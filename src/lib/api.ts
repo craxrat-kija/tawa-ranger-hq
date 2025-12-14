@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001/api';
 
 // Get auth token from localStorage
 const getToken = (): string | null => {
@@ -178,11 +178,34 @@ export const authApi = {
 
 // Users API
 export const usersApi = {
-  getAll: async (role?: string) => {
-    const endpoint = role ? `/users?role=${role}` : '/users';
+  getAll: async (roleOrParams?: string | { role?: string; course_id?: number; search?: string }) => {
+    const queryParams = new URLSearchParams();
+    
+    // Support both old signature (string for role) and new signature (object with params)
+    if (typeof roleOrParams === 'string') {
+      // Old signature: usersApi.getAll('trainee')
+      queryParams.append('role', roleOrParams);
+    } else if (roleOrParams && typeof roleOrParams === 'object') {
+      // New signature: usersApi.getAll({ role: 'trainee', course_id: 1 })
+      if (roleOrParams.role) queryParams.append('role', roleOrParams.role);
+      if (roleOrParams.course_id) queryParams.append('course_id', roleOrParams.course_id.toString());
+      if (roleOrParams.search) queryParams.append('search', roleOrParams.search);
+    }
+    
+    const queryString = queryParams.toString();
+    const endpoint = `/users${queryString ? `?${queryString}` : ''}`;
     const response = await apiRequest<any>(endpoint);
     // Handle both array and object responses
-    return Array.isArray(response) ? response : (response?.data || []);
+    if (Array.isArray(response)) {
+      return response;
+    }
+    if (response && response.data && Array.isArray(response.data)) {
+      return response.data;
+    }
+    if (response && response.success && Array.isArray(response.data)) {
+      return response.data;
+    }
+    return [];
   },
 
   getById: async (id: string) => {
@@ -316,7 +339,11 @@ export const patientsApi = {
 
   getById: async (id: string) => {
     const response = await apiRequest<any>(`/patients/${id}`);
-    return response;
+    // Handle response structure: { success: true, data: {...} } or just {...}
+    if (response && typeof response === 'object' && 'data' in response) {
+      return response;
+    }
+    return { data: response };
   },
 
   create: async (patientData: any) => {
@@ -373,6 +400,57 @@ export const attendanceApi = {
       body: JSON.stringify(attendanceData),
     });
     return response;
+  },
+};
+
+// Medical Records API
+export const medicalRecordsApi = {
+  getAll: async (params?: { user_id?: string; latest?: boolean }) => {
+    const queryParams = new URLSearchParams();
+    if (params?.user_id) queryParams.append('user_id', params.user_id);
+    if (params?.latest) queryParams.append('latest', 'true');
+    const queryString = queryParams.toString();
+    const endpoint = `/medical-records${queryString ? `?${queryString}` : ''}`;
+    const response = await apiRequest<any>(endpoint);
+    return Array.isArray(response) ? response : (response?.data || []);
+  },
+
+  getById: async (id: string) => {
+    const response = await apiRequest<any>(`/medical-records/${id}`);
+    if (response && typeof response === 'object' && 'data' in response) {
+      return response;
+    }
+    return { data: response };
+  },
+
+  getLatestByUser: async (userId: string) => {
+    const response = await apiRequest<any>(`/medical-records/user/${userId}/latest`);
+    if (response && typeof response === 'object' && 'data' in response) {
+      return response;
+    }
+    return { data: response };
+  },
+
+  create: async (recordData: any) => {
+    const response = await apiRequest<any>('/medical-records', {
+      method: 'POST',
+      body: JSON.stringify(recordData),
+    });
+    return response;
+  },
+
+  update: async (id: string, recordData: any) => {
+    const response = await apiRequest<any>(`/medical-records/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(recordData),
+    });
+    return response;
+  },
+
+  delete: async (id: string) => {
+    await apiRequest(`/medical-records/${id}`, {
+      method: 'DELETE',
+    });
   },
 };
 
@@ -1169,6 +1247,221 @@ export const adminPermissionsApi = {
       can_manage_activities: false,
       can_view_doctor_dashboard: false,
     };
+  },
+};
+
+// Discipline Issues API
+export const disciplineIssuesApi = {
+  getAll: async (params?: { user_id?: number; status?: string; severity?: string; approval_status?: string; search?: string; course_id?: number }) => {
+    const queryParams = new URLSearchParams();
+    if (params?.user_id) queryParams.append('user_id', params.user_id.toString());
+    if (params?.status) queryParams.append('status', params.status);
+    if (params?.severity) queryParams.append('severity', params.severity);
+    if (params?.approval_status) queryParams.append('approval_status', params.approval_status);
+    if (params?.search) queryParams.append('search', params.search);
+    if (params?.course_id) queryParams.append('course_id', params.course_id.toString());
+    
+    const queryString = queryParams.toString();
+    const endpoint = `/discipline-issues${queryString ? `?${queryString}` : ''}`;
+    
+    const response = await apiRequest<any>(endpoint);
+    if (Array.isArray(response)) {
+      return response;
+    }
+    if (response && response.data && Array.isArray(response.data)) {
+      return response.data;
+    }
+    if (response && response.success && Array.isArray(response.data)) {
+      return response.data;
+    }
+    return [];
+  },
+
+  get: async (id: number) => {
+    const response = await apiRequest<any>(`/discipline-issues/${id}`);
+    if (response && response.data) {
+      return response.data;
+    }
+    if (response && response.success && response.data) {
+      return response.data;
+    }
+    return response;
+  },
+
+  create: async (data: {
+    user_id: number;
+    title: string;
+    description: string;
+    severity: 'low' | 'medium' | 'high' | 'critical';
+    incident_date: string;
+    document?: File;
+    course_id?: number;
+  }) => {
+    const formData = new FormData();
+    formData.append('user_id', data.user_id.toString());
+    formData.append('title', data.title);
+    formData.append('description', data.description);
+    formData.append('severity', data.severity);
+    formData.append('incident_date', data.incident_date);
+    if (data.document) {
+      formData.append('document', data.document);
+    }
+    if (data.course_id) {
+      formData.append('course_id', data.course_id.toString());
+    }
+
+    const token = getToken();
+    const response = await fetch(`${API_BASE_URL}/discipline-issues`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json',
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to create discipline issue');
+    }
+
+    const result = await response.json();
+    return result.data || result;
+  },
+
+  update: async (id: number, data: {
+    title?: string;
+    description?: string;
+    severity?: 'low' | 'medium' | 'high' | 'critical';
+    status?: 'pending' | 'investigating' | 'resolved' | 'dismissed';
+    incident_date?: string;
+    resolution_notes?: string;
+    document?: File;
+  }) => {
+    const formData = new FormData();
+    if (data.title) formData.append('title', data.title);
+    if (data.description) formData.append('description', data.description);
+    if (data.severity) formData.append('severity', data.severity);
+    if (data.status) formData.append('status', data.status);
+    if (data.incident_date) formData.append('incident_date', data.incident_date);
+    if (data.resolution_notes !== undefined) formData.append('resolution_notes', data.resolution_notes);
+    if (data.document) {
+      formData.append('document', data.document);
+    }
+    formData.append('_method', 'PUT');
+
+    const token = getToken();
+    const response = await fetch(`${API_BASE_URL}/discipline-issues/${id}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json',
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to update discipline issue');
+    }
+
+    const result = await response.json();
+    return result.data || result;
+  },
+
+  delete: async (id: number) => {
+    const response = await apiRequest<any>(`/discipline-issues/${id}`, {
+      method: 'DELETE',
+    });
+    return response;
+  },
+
+  downloadDocument: async (id: number) => {
+    const token = getToken();
+    const response = await fetch(`${API_BASE_URL}/discipline-issues/${id}/document/download`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to download document');
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    
+    const contentDisposition = response.headers.get('content-disposition');
+    let fileName = 'document';
+    if (contentDisposition) {
+      const fileNameMatch = contentDisposition.match(/filename="?(.+)"?/i);
+      if (fileNameMatch) {
+        fileName = fileNameMatch[1];
+      }
+    }
+    
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  },
+
+  approve: async (id: number) => {
+    const response = await apiRequest<any>(`/discipline-issues/${id}/approve`, {
+      method: 'POST',
+    });
+    return response.data || response;
+  },
+
+  reject: async (id: number, rejectionReason: string) => {
+    const response = await apiRequest<any>(`/discipline-issues/${id}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ rejection_reason: rejectionReason }),
+    });
+    return response.data || response;
+  },
+};
+
+// Course Metadata API
+export const courseMetadataApi = {
+  getAll: async (type?: 'name' | 'course_type' | 'location' | 'course_code') => {
+    const params = type ? `?type=${type}` : '';
+    const response = await apiRequest<any>(`/course-metadata${params}`);
+    return Array.isArray(response) ? response : (response?.data || []);
+  },
+
+  get: async (id: number) => {
+    const response = await apiRequest<any>(`/course-metadata/${id}`);
+    return response.data || response;
+  },
+
+  create: async (metadataData: { type: 'name' | 'course_type' | 'location'; value: string; description?: string }) => {
+    const response = await apiRequest<any>('/course-metadata', {
+      method: 'POST',
+      body: JSON.stringify(metadataData),
+    });
+    return response.data || response;
+  },
+
+  update: async (id: number, metadataData: Partial<{ type: 'name' | 'course_type' | 'location'; value: string; description?: string }>) => {
+    const response = await apiRequest<any>(`/course-metadata/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(metadataData),
+    });
+    return response.data || response;
+  },
+
+  delete: async (id: number) => {
+    const response = await apiRequest<any>(`/course-metadata/${id}`, {
+      method: 'DELETE',
+    });
+    return response;
   },
 };
 

@@ -344,7 +344,7 @@ const DoctorHome = () => {
           </CardTitle>
           <CardDescription className="text-muted-foreground">Common medical tasks</CardDescription>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4 relative z-10">
+        <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 relative z-10">
           <Button 
             type="button"
             className="w-full h-20 text-lg bg-gradient-military cursor-pointer relative overflow-hidden group shadow-lg hover:shadow-[0_0_30px_rgba(34,197,94,0.4)] transition-all duration-300 hover:scale-105 border-2 border-primary/30 hover:border-primary/60"
@@ -393,6 +393,22 @@ const DoctorHome = () => {
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
             <FileHeart className="w-6 h-6 mr-2 relative z-10 text-primary group-hover:scale-125 group-hover:animate-pulse-glow transition-all duration-300" />
             <span className="relative z-10 font-semibold">Health Records</span>
+          </Button>
+          <Button 
+            type="button"
+            variant="outline" 
+            className="w-full h-20 text-lg cursor-pointer relative overflow-hidden group border-2 hover:border-blue-500/50 hover:bg-blue-500/10 transition-all duration-300 hover:scale-105 shadow-md hover:shadow-[0_0_25px_rgba(59,130,246,0.3)]"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleNavigate("/doctor/trainees");
+            }}
+            style={{ pointerEvents: 'auto', zIndex: 10 }}
+          >
+            {/* Shine effect */}
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-500/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+            <Users className="w-6 h-6 mr-2 relative z-10 text-blue-500 group-hover:scale-125 group-hover:animate-pulse-glow transition-all duration-300" />
+            <span className="relative z-10 font-semibold">View All Trainees</span>
           </Button>
         </CardContent>
       </Card>

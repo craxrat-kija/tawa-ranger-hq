@@ -99,7 +99,7 @@ const Assessments = () => {
 
   useEffect(() => {
     if (selectedCourse || (!isSuperAdmin && adminCourseId)) {
-      loadData();
+    loadData();
     }
   }, [selectedCourse]);
 
