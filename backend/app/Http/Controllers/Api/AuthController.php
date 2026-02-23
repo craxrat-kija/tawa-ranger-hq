@@ -13,38 +13,70 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $request->validate([
-            'user_id' => 'required|string',
+            'email' => 'required|string|email',
             'password' => 'required',
         ]);
 
-        // Try to find user by user_id first, then fallback to email for backward compatibility
-        $user = User::where('user_id', $request->user_id)
-                    ->orWhere('email', $request->user_id)
-                    ->first();
+        $user = User::where('email', $request->email)->first();
 
         if (!$user || !Hash::check($request->password, $user->password)) {
             throw ValidationException::withMessages([
-                'user_id' => ['The provided credentials are incorrect.'],
+                'email' => ['The provided credentials are incorrect.'],
             ]);
         }
 
         // Prevent trainees from logging in
         if ($user->role === 'trainee') {
             throw ValidationException::withMessages([
-                'user_id' => ['Trainees do not have access to the login system. Please contact your administrator.'],
+                'email' => ['Trainees do not have access to the login system. Please contact your administrator.'],
             ]);
         }
 
         // Prevent super_admin from logging in through regular login
-        // Super admins must use the dedicated super admin login page
         if ($user->role === 'super_admin') {
             throw ValidationException::withMessages([
-                'user_id' => ['Super admins must use the dedicated super admin login page. Please use /super-admin/login'],
+                'email' => ['Super admins must use the dedicated super admin portal. Please use /super-admin'],
             ]);
         }
 
-        // Load course relationship to get course name
-        $user->load('course');
+        // Check course enrollments
+        $enrolledCourses = $user->enrolledCourses;
+
+        // If user has multiple courses and no specific course_id provided in login
+        if ($enrolledCourses->count() > 1 && !$request->has('course_id')) {
+            return response()->json([
+                'success' => true,
+                'requires_course_selection' => true,
+                'data' => [
+                    'user' => [
+                        'id' => $user->id,
+                        'name' => $user->name,
+                        'email' => $user->email,
+                        'role' => $user->role,
+                    ],
+                    'courses' => $enrolledCourses->map(function ($course) {
+                        return [
+                            'id' => $course->id,
+                            'name' => $course->name,
+                            'code' => $course->code,
+                        ];
+                    }),
+                ],
+            ]);
+        }
+
+        // If a specific course_id was selected or only one course exists
+        $selectedCourse = null;
+        if ($request->has('course_id')) {
+            $selectedCourse = $enrolledCourses->firstWhere('id', $request->course_id);
+            if (!$selectedCourse) {
+                throw ValidationException::withMessages([
+                    'course_id' => ['You are not enrolled in the selected course.'],
+                ]);
+            }
+        } elseif ($enrolledCourses->count() === 1) {
+            $selectedCourse = $enrolledCourses->first();
+        }
 
         $token = $user->createToken('auth-token')->plainTextToken;
 
@@ -61,8 +93,15 @@ class AuthController extends Controller
                     'phone' => $user->phone,
                     'department' => $user->department,
                     'avatar' => $user->avatar,
-                    'course_id' => $user->course_id,
-                    'course_name' => $user->course->name ?? null,
+                    'course_id' => $selectedCourse ? $selectedCourse->id : null,
+                    'course_name' => $selectedCourse ? $selectedCourse->name : null,
+                    'enrolled_courses' => $enrolledCourses->map(function ($course) {
+                        return [
+                            'id' => $course->id,
+                            'name' => $course->name,
+                            'code' => $course->code,
+                        ];
+                    }),
                 ],
                 'token' => $token,
             ],
@@ -111,32 +150,23 @@ class AuthController extends Controller
     public function superAdminLogin(Request $request)
     {
         $request->validate([
-            'user_id' => 'required|string',
+            'email' => 'required|string|email',
             'password' => 'required',
         ]);
 
-        // Try to find user by user_id first, then fallback to email for backward compatibility
-        $user = User::where(function($query) use ($request) {
-                    $query->where('user_id', $request->user_id)
-                          ->orWhere('email', $request->user_id);
-                })->first();
+        $user = User::where('email', $request->email)->first();
 
         if (!$user || !Hash::check($request->password, $user->password)) {
             throw ValidationException::withMessages([
-                'user_id' => ['The provided credentials are incorrect.'],
+                'email' => ['The provided credentials are incorrect.'],
             ]);
         }
 
         // Only allow super_admin to login through this endpoint
         if ($user->role !== 'super_admin') {
             throw ValidationException::withMessages([
-                'user_id' => ['This login page is only for Super Administrators. Please use the regular login page.'],
+                'email' => ['This login page is only for Super Administrators. Please use the regular login page.'],
             ]);
-        }
-
-        // Load course relationship to get course name (only if course_id exists)
-        if ($user->course_id) {
-            $user->load('course');
         }
 
         $token = $user->createToken('auth-token')->plainTextToken;
@@ -154,8 +184,14 @@ class AuthController extends Controller
                     'phone' => $user->phone,
                     'department' => $user->department,
                     'avatar' => $user->avatar,
-                    'course_id' => $user->course_id,
-                    'course_name' => $user->course->name ?? null,
+                    'course_id' => null, // Super admin is not tied to a single course
+                    'enrolled_courses' => \App\Models\Course::all()->map(function ($course) {
+                        return [
+                            'id' => $course->id,
+                            'name' => $course->name,
+                            'code' => $course->code,
+                        ];
+                    }),
                 ],
                 'token' => $token,
             ],
@@ -174,7 +210,9 @@ class AuthController extends Controller
 
     public function user(Request $request)
     {
-        $user = $request->user()->load('course');
+        $user = $request->user();
+        $enrolledCourses = $user->enrolledCourses;
+
         return response()->json([
             'success' => true,
             'data' => [
@@ -187,8 +225,7 @@ class AuthController extends Controller
                     'phone' => $user->phone,
                     'department' => $user->department,
                     'avatar' => $user->avatar,
-                    'course_id' => $user->course_id,
-                    'course_name' => $user->course->name ?? null,
+                    'enrolled_courses' => $enrolledCourses,
                 ],
             ],
         ]);

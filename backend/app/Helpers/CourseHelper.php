@@ -8,23 +8,35 @@ use App\Models\Course;
 class CourseHelper
 {
     /**
-     * Get the current course for the authenticated user
-     */
-    public static function getCurrentCourse(?User $user): ?Course
-    {
-        if (!$user || !$user->course_id) {
-            return null;
-        }
-
-        return Course::find($user->course_id);
-    }
-
-    /**
      * Get the current course ID for the authenticated user
      */
     public static function getCurrentCourseId(?User $user): ?int
     {
-        return $user?->course_id;
+        if (!$user)
+            return null;
+
+        // Check for course ID in request header
+        $courseId = request()->header('X-Course-Id');
+        if ($courseId) {
+            return (int) $courseId;
+        }
+
+        // Fallback: If user has only one course, return it
+        $courses = $user->enrolledCourses;
+        if ($courses->count() === 1) {
+            return $courses->first()->id;
+        }
+
+        return null; // Requires selection if multiple courses exist and no header provided
+    }
+
+    /**
+     * Get the current course for the authenticated user
+     */
+    public static function getCurrentCourse(?User $user): ?Course
+    {
+        $id = self::getCurrentCourseId($user);
+        return $id ? Course::find($id) : null;
     }
 
     /**
@@ -36,8 +48,8 @@ class CourseHelper
             return false;
         }
 
-        // Admins can access their own course
-        if ($user->course_id === $courseId) {
+        // Super admins can access everything
+        if ($user->role === 'super_admin') {
             return true;
         }
 

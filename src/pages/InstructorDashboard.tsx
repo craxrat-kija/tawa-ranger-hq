@@ -38,6 +38,7 @@ import { useToast } from "@/hooks/use-toast";
 import { timetableApi, coursesApi, usersApi, materialsApi, assessmentsApi, gradesApi } from "@/lib/api";
 import { format } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const InstructorDashboard = () => {
   const { logout, user } = useAuth();
@@ -66,15 +67,14 @@ const InstructorDashboard = () => {
     <div className="flex h-screen bg-background">
       {/* Sidebar */}
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-50 transition-transform duration-300 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-        } w-64 bg-[hsl(120,30%,18%)]`}
+        className={`fixed lg:static inset-y-0 left-0 z-50 transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+          } w-64 bg-[hsl(120,30%,18%)]`}
       >
         <div className="relative h-full flex flex-col">
           {/* Logo Section */}
-          <div className="p-6 border-b border-[hsl(45,30%,35%)]/40 bg-gradient-to-r from-[hsl(120,45%,30%)]/30 via-[hsl(45,40%,35%)]/20 to-transparent">
-            <div className="flex items-center gap-3">
-              <RotatingLogo className="w-12 h-12" />
+          <div className="p-8 border-b border-[hsl(45,30%,35%)]/40 bg-gradient-to-b from-white/5 to-transparent">
+            <div className="flex flex-col items-center text-center gap-4">
+              <RotatingLogo className="w-24 h-24" />
               <div>
                 <h2 className="text-white font-bold text-xl">TAWA</h2>
                 <p className="text-white/80 text-sm">Instructor Portal</p>
@@ -142,23 +142,35 @@ const InstructorDashboard = () => {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-white">TAWA Instructor Dashboard</h1>
-              <div className="flex items-center gap-4 mt-2">
-                {selectedCourse ? (
+              <div className="flex items-center gap-4">
+                {(user?.enrolled_courses && user.enrolled_courses.length > 1) ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-white/70 hidden sm:inline">Switch Course:</span>
+                    <Select
+                      value={selectedCourse?.id?.toString() || ""}
+                      onValueChange={(value) => {
+                        const course = user?.enrolled_courses?.find(c => c.id.toString() === value);
+                        if (course) {
+                          setSelectedCourse(course as any);
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-[180px] h-9 text-xs bg-white/10 border-white/20 text-white">
+                        <SelectValue placeholder="Select Course" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {user?.enrolled_courses?.map((course) => (
+                          <SelectItem key={course.id} value={course.id.toString()}>
+                            {course.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : selectedCourse ? (
                   <div className="flex items-center gap-2 px-3 py-1.5 bg-white/20 rounded-lg border border-white/30 backdrop-blur-sm">
                     <BookOpen className="w-4 h-4 text-white" />
                     <span className="text-white font-semibold text-sm">{selectedCourse.name}</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedCourse(null);
-                        navigate("/select-course");
-                      }}
-                      className="text-white/80 hover:text-white hover:bg-white/20 h-6 px-2 ml-2"
-                    >
-                      <RefreshCw className="w-3 h-3 mr-1" />
-                      Switch Course
-                    </Button>
                   </div>
                 ) : user?.course_name ? (
                   <div className="flex items-center gap-2 px-3 py-1.5 bg-white/20 rounded-lg border border-white/30 backdrop-blur-sm">
@@ -199,6 +211,7 @@ const InstructorDashboard = () => {
 // Instructor Home Component
 const InstructorHome = () => {
   const { user } = useAuth();
+  const { selectedCourse } = useCourse();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [todaySchedule, setTodaySchedule] = useState<any[]>([]);
@@ -215,7 +228,7 @@ const InstructorHome = () => {
   useEffect(() => {
     loadTodaySchedule();
     loadStats();
-  }, [user]);
+  }, [user, selectedCourse]);
 
   const loadTodaySchedule = async () => {
     try {
@@ -237,37 +250,37 @@ const InstructorHome = () => {
       console.log('No user ID, skipping stats load');
       return;
     }
-    
+
     try {
       setIsLoadingStats(true);
       console.log('Loading stats for instructor:', user.id, user.name);
-      
+
       // Initialize stats
       let coursesCount = 0;
       let traineesCount = 0;
       let materialsCount = 0;
       let pendingReviewsCount = 0;
-      
+
       // 1. Get My Courses - courses where instructor_id matches current user
       let coursesArray: any[] = [];
       try {
         const myCoursesResponse = await coursesApi.getAll();
-        coursesArray = Array.isArray(myCoursesResponse) 
-          ? myCoursesResponse 
+        coursesArray = Array.isArray(myCoursesResponse)
+          ? myCoursesResponse
           : (myCoursesResponse?.data || []);
         coursesCount = coursesArray.length;
         console.log('✓ Courses loaded:', coursesCount, coursesArray);
-        
+
         // Prepare chart data: Trainees per course
         const chartDataArray = [];
         for (const course of coursesArray) {
           try {
             const enrolledUsersResponse = await coursesApi.getEnrolledUsers(course.id.toString());
-            const enrolledUsers = Array.isArray(enrolledUsersResponse) 
-              ? enrolledUsersResponse 
+            const enrolledUsers = Array.isArray(enrolledUsersResponse)
+              ? enrolledUsersResponse
               : (enrolledUsersResponse?.data || []);
             const trainees = enrolledUsers.filter((u: any) => u.role === 'trainee');
-            
+
             chartDataArray.push({
               name: course.name?.substring(0, 15) || 'Course',
               trainees: trainees.length,
@@ -282,12 +295,12 @@ const InstructorHome = () => {
         }
         setChartData(chartDataArray);
         console.log('✓ Chart data loaded:', chartDataArray);
-        
+
         // 2. Get My Trainees - use same method as /instructor/trainees page
         try {
           const traineesData = await usersApi.getAll('trainee');
-          const traineesArray = Array.isArray(traineesData) 
-            ? traineesData 
+          const traineesArray = Array.isArray(traineesData)
+            ? traineesData
             : (traineesData?.data || []);
           traineesCount = traineesArray.length;
           console.log('✓ Trainees loaded (same as /instructor/trainees):', traineesCount);
@@ -297,46 +310,46 @@ const InstructorHome = () => {
       } catch (error: any) {
         console.error('✗ Error loading courses:', error.message);
       }
-      
+
       // 3. Get All Materials - instructors can see all materials in the system
       try {
         const allMaterialsResponse = await materialsApi.getAll();
-        const materialsArray = Array.isArray(allMaterialsResponse) 
-          ? allMaterialsResponse 
+        const materialsArray = Array.isArray(allMaterialsResponse)
+          ? allMaterialsResponse
           : (allMaterialsResponse?.data || []);
-        
+
         // Instructors can see all materials across all courses
         materialsCount = materialsArray.length;
         console.log('✓ Materials loaded:', materialsCount, 'total materials in system');
       } catch (error: any) {
         console.error('✗ Error loading materials:', error.message);
       }
-      
+
       // 4. Get Pending Reviews - assessments that need grading
       try {
         const allAssessmentsResponse = await assessmentsApi.getAll(user.id.toString());
-        const instructorAssessments = Array.isArray(allAssessmentsResponse) 
-          ? allAssessmentsResponse 
+        const instructorAssessments = Array.isArray(allAssessmentsResponse)
+          ? allAssessmentsResponse
           : (allAssessmentsResponse?.data || []);
-        
+
         console.log('✓ Assessments loaded:', instructorAssessments.length);
-        
+
         for (const assessment of instructorAssessments) {
           try {
             const assessmentGradesResponse = await gradesApi.getAll(assessment.id.toString());
-            const grades = Array.isArray(assessmentGradesResponse) 
-              ? assessmentGradesResponse 
+            const grades = Array.isArray(assessmentGradesResponse)
+              ? assessmentGradesResponse
               : (assessmentGradesResponse?.data || []);
-            
+
             if (assessment.course_id) {
               const enrolledUsersResponse = await coursesApi.getEnrolledUsers(assessment.course_id.toString());
-              const enrolledUsers = Array.isArray(enrolledUsersResponse) 
-                ? enrolledUsersResponse 
+              const enrolledUsers = Array.isArray(enrolledUsersResponse)
+                ? enrolledUsersResponse
                 : (enrolledUsersResponse?.data || []);
-              
+
               const trainees = enrolledUsers.filter((u: any) => u.role === 'trainee');
               const gradedTraineeIds = grades.map((g: any) => g.trainee_id?.toString());
-              const ungradedTrainees = trainees.filter((t: any) => 
+              const ungradedTrainees = trainees.filter((t: any) =>
                 !gradedTraineeIds.includes(t.id?.toString())
               );
               pendingReviewsCount += ungradedTrainees.length;
@@ -349,14 +362,14 @@ const InstructorHome = () => {
       } catch (error: any) {
         console.error('✗ Error loading assessments:', error.message);
       }
-      
+
       const finalStats = {
         courses: coursesCount,
         trainees: traineesCount,
         materials: materialsCount,
         pendingReviews: pendingReviewsCount,
       };
-      
+
       console.log('✓ Final stats:', finalStats);
       setStats(finalStats);
     } catch (error: any) {
@@ -365,9 +378,9 @@ const InstructorHome = () => {
       setIsLoadingStats(false);
     }
   };
-  
+
   const handleQuickAction = (action: string) => {
-    switch(action) {
+    switch (action) {
       case "Upload Materials":
         navigate("/instructor/materials");
         break;
@@ -387,7 +400,7 @@ const InstructorHome = () => {
         break;
     }
   };
-  
+
   return (
     <div className="space-y-8">
       {/* Welcome Section */}
@@ -466,25 +479,25 @@ const InstructorHome = () => {
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis 
-                dataKey="name" 
+              <XAxis
+                dataKey="name"
                 stroke="#6b7280"
                 angle={-45}
                 textAnchor="end"
                 height={80}
               />
               <YAxis stroke="#6b7280" />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: 'rgba(255, 255, 255, 0.95)',
                   border: '1px solid #e5e7eb',
                   borderRadius: '8px'
-                }} 
+                }}
               />
               <Legend />
-              <Bar 
-                dataKey="trainees" 
-                fill="#10b981" 
+              <Bar
+                dataKey="trainees"
+                fill="#10b981"
                 radius={[8, 8, 0, 0]}
                 animationDuration={1500}
                 name="Trainees"

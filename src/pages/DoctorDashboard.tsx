@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const DoctorDashboard = () => {
   const { logout, user } = useAuth();
@@ -68,45 +69,45 @@ const DoctorDashboard = () => {
 
       {/* Sidebar */}
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-50 transition-transform duration-300 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-        } w-64 bg-gradient-to-b from-[hsl(120,30%,18%)] via-[hsl(120,30%,16%)] to-[hsl(120,30%,14%)] relative overflow-hidden`}
+        className={`fixed lg:static inset-y-0 left-0 z-50 transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+          } w-64 bg-gradient-to-b from-[hsl(120,30%,18%)] via-[hsl(120,30%,16%)] to-[hsl(120,30%,14%)] relative overflow-hidden`}
       >
         {/* Animated background gradient */}
         <div className="absolute inset-0 bg-gradient-to-br from-[hsl(120,40%,25%)]/20 via-transparent to-[hsl(45,50%,30%)]/10 animate-gradient-shift bg-[length:200%_200%]" />
-        
+
         {/* Glow effect */}
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[hsl(120,50%,50%)] to-transparent animate-shimmer" />
-        
+
         <div className="relative h-full flex flex-col z-10">
           {/* Logo Section */}
-          <div className="p-6 border-b border-[hsl(120,30%,25%)]/30 bg-gradient-to-r from-[hsl(120,35%,25%)]/30 via-[hsl(120,40%,30%)]/20 to-transparent relative overflow-hidden">
+          <div className="p-8 border-b border-[hsl(120,30%,25%)]/30 bg-gradient-to-b from-white/5 to-transparent relative overflow-hidden">
             {/* Shine effect */}
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-            <div className="flex items-center justify-between relative z-10">
-              <div className="flex items-center gap-3 animate-fade-in-up">
-                <div className="relative">
-                  <RotatingLogo className="w-12 h-12 animate-glow-pulse" />
-                  <div className="absolute inset-0 rounded-full bg-[hsl(120,50%,50%)]/30 blur-xl animate-pulse-glow" />
-                </div>
-                <div>
-                  <h2 className="text-white font-bold text-xl drop-shadow-lg animate-scale-in" style={{ animationDelay: "0.1s" }}>
-                    TAWA
-                  </h2>
-                  <p className="text-white/90 text-sm drop-shadow-md animate-scale-in" style={{ animationDelay: "0.2s" }}>
-                    Medical Portal
-                  </p>
-                </div>
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+
+            <div className="flex flex-col items-center text-center gap-4 relative z-10 transition-all duration-500 animate-fade-in">
+              <div className="relative group">
+                <RotatingLogo className="w-24 h-24 transition-transform duration-500 group-hover:scale-110" />
+                <div className="absolute inset-0 rounded-full bg-[hsl(120,50%,50%)]/20 blur-2xl animate-pulse-glow" />
               </div>
-              {/* Close button for mobile */}
-              <button
-                onClick={() => setSidebarOpen(false)}
-                className="lg:hidden p-2 bg-white/10 hover:bg-white/20 border border-white/30 rounded-lg text-white shadow-lg backdrop-blur-sm transition-all hover:scale-110 active:scale-95 hover:shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:border-white/50"
-                aria-label="Close sidebar"
-              >
-                <X size={20} className="drop-shadow-lg" />
-              </button>
+
+              <div>
+                <h2 className="text-white font-bold text-2xl tracking-wider drop-shadow-lg">
+                  TAWA
+                </h2>
+                <p className="text-white/80 text-sm font-medium tracking-tight mt-1">
+                  Medical Portal
+                </p>
+              </div>
             </div>
+
+            {/* Close button for mobile */}
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="lg:hidden absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg text-white backdrop-blur-md transition-all z-20"
+              aria-label="Close sidebar"
+            >
+              <X size={18} />
+            </button>
           </div>
 
           {/* Menu Items */}
@@ -139,15 +140,15 @@ const DoctorDashboard = () => {
                 {user?.user_id || user?.email}
               </p>
             </div>
-            {user?.course_name && (
+            {selectedCourse && (
               <div className="mb-3 px-3 py-2 bg-gradient-to-r from-white/10 via-white/15 to-white/10 rounded-lg border border-white/30 shadow-lg backdrop-blur-sm hover:shadow-[0_0_15px_rgba(255,255,255,0.2)] transition-all duration-300 relative overflow-hidden group animate-scale-in">
                 {/* Shine effect */}
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
                 <div className="flex items-center gap-2 text-white relative z-10">
                   <BookOpen className="w-4 h-4 text-white/90 drop-shadow-md group-hover:scale-110 transition-transform" />
                   <div>
-                    <p className="text-xs text-white/80">Course</p>
-                    <p className="text-sm font-semibold drop-shadow-md">{user.course_name}</p>
+                    <p className="text-xs text-white/80">Active Course</p>
+                    <p className="text-sm font-semibold drop-shadow-md">{selectedCourse.name}</p>
                   </div>
                 </div>
               </div>
@@ -172,10 +173,10 @@ const DoctorDashboard = () => {
         <header className="relative bg-gradient-to-r from-[hsl(120,35%,22%)] via-[hsl(120,30%,20%)] to-[hsl(120,25%,18%)] text-white border-b border-[hsl(120,30%,15%)] p-4 shadow-lg overflow-hidden">
           {/* Animated background gradient */}
           <div className="absolute inset-0 bg-gradient-to-r from-[hsl(120,40%,25%)]/30 via-[hsl(120,35%,22%)]/20 to-[hsl(120,30%,20%)]/30 animate-gradient-shift bg-[length:200%_100%]" />
-          
+
           {/* Glow line at top */}
           <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-[hsl(120,50%,50%)] to-transparent opacity-60 animate-shimmer" />
-          
+
           <div className="flex items-center justify-between gap-2 w-full relative z-10">
             {/* Mobile toggle button - always visible on mobile */}
             <button
@@ -187,36 +188,46 @@ const DoctorDashboard = () => {
               <div className="absolute inset-0 bg-[hsl(120,50%,50%)]/0 group-hover:bg-[hsl(120,50%,50%)]/20 blur-sm transition-all duration-300" />
               <Menu size={24} className="drop-shadow-lg relative z-10 group-hover:animate-pulse" />
             </button>
-            
+
             {/* Title and course info */}
             <div className="flex-1 min-w-0">
               <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-white truncate drop-shadow-lg animate-fade-in-up relative">
                 <span className="relative z-10">TAWA Medical Officer Portal</span>
                 <span className="absolute inset-0 text-[hsl(120,50%,50%)] blur-sm opacity-50 animate-pulse-glow">TAWA Medical Officer Portal</span>
               </h1>
-              <div className="flex items-center gap-4 mt-2 flex-wrap">
-                {selectedCourse ? (
+              <div className="flex items-center gap-4">
+                {(user?.enrolled_courses && user.enrolled_courses.length > 1) ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-white/70 hidden sm:inline">Switch Course:</span>
+                    <Select
+                      value={selectedCourse?.id?.toString() || ""}
+                      onValueChange={(value) => {
+                        const course = user?.enrolled_courses?.find(c => c.id.toString() === value);
+                        if (course) {
+                          setSelectedCourse(course as any);
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-[180px] h-9 text-xs bg-white/10 border-white/20 text-white">
+                        <SelectValue placeholder="Select Course" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {user?.enrolled_courses?.map((course) => (
+                          <SelectItem key={course.id} value={course.id.toString()}>
+                            {course.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : selectedCourse ? (
                   <div className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-white/20 via-white/25 to-white/20 rounded-lg border border-white/40 backdrop-blur-sm shadow-lg hover:shadow-[0_0_20px_rgba(255,255,255,0.3)] transition-all duration-300 hover:scale-105 relative overflow-hidden group animate-scale-in">
-                    {/* Shine effect */}
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
                     <BookOpen className="w-4 h-4 text-white flex-shrink-0 relative z-10 drop-shadow-md group-hover:scale-110 transition-transform" />
                     <span className="text-white font-semibold text-sm truncate relative z-10 drop-shadow-md">{selectedCourse.name}</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedCourse(null);
-                        navigate("/select-course");
-                      }}
-                      className="text-white/90 hover:text-white hover:bg-white/30 h-6 px-2 ml-2 hidden sm:inline-flex relative z-10 border border-white/20 hover:border-white/40 transition-all hover:scale-110"
-                    >
-                      <RefreshCw className="w-3 h-3 mr-1 group-hover:rotate-180 transition-transform duration-500" />
-                      Switch Course
-                    </Button>
                   </div>
                 ) : user?.course_name ? (
                   <div className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-white/20 via-white/25 to-white/20 rounded-lg border border-white/40 backdrop-blur-sm shadow-lg hover:shadow-[0_0_20px_rgba(255,255,255,0.3)] transition-all duration-300 hover:scale-105 relative overflow-hidden group animate-scale-in">
-                    {/* Shine effect */}
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
                     <BookOpen className="w-4 h-4 text-white flex-shrink-0 relative z-10 drop-shadow-md group-hover:scale-110 transition-transform" />
                     <span className="text-white font-semibold text-sm truncate relative z-10 drop-shadow-md">{user.course_name}</span>
@@ -224,7 +235,7 @@ const DoctorDashboard = () => {
                 ) : null}
               </div>
             </div>
-            
+
             {/* Right side actions */}
             <div className="flex items-center gap-2 flex-shrink-0">
               <NotificationBar />
@@ -337,7 +348,7 @@ const DoctorHome = () => {
       <Card className="relative overflow-hidden border-2 shadow-xl animate-fade-in-up" style={{ position: 'relative', zIndex: 2, animationDelay: "0.3s" }}>
         {/* Background gradient animation */}
         <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5 animate-gradient-shift bg-[length:200%_200%]" />
-        
+
         <CardHeader className="relative z-10">
           <CardTitle className="text-2xl font-bold bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent bg-[length:200%_100%] animate-gradient-shift">
             Quick Actions
@@ -345,7 +356,7 @@ const DoctorHome = () => {
           <CardDescription className="text-muted-foreground">Common medical tasks</CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 relative z-10">
-          <Button 
+          <Button
             type="button"
             className="w-full h-20 text-lg bg-gradient-military cursor-pointer relative overflow-hidden group shadow-lg hover:shadow-[0_0_30px_rgba(34,197,94,0.4)] transition-all duration-300 hover:scale-105 border-2 border-primary/30 hover:border-primary/60"
             onClick={(e) => {
@@ -362,9 +373,9 @@ const DoctorHome = () => {
             <UserPlus className="w-6 h-6 mr-2 relative z-10 drop-shadow-lg group-hover:scale-125 group-hover:rotate-12 transition-all duration-300" />
             <span className="relative z-10 font-semibold drop-shadow-md">Register Patient</span>
           </Button>
-          <Button 
+          <Button
             type="button"
-            variant="outline" 
+            variant="outline"
             className="w-full h-20 text-lg cursor-pointer relative overflow-hidden group border-2 hover:border-accent/50 hover:bg-accent/10 transition-all duration-300 hover:scale-105 shadow-md hover:shadow-[0_0_25px_rgba(34,197,94,0.3)]"
             onClick={(e) => {
               e.preventDefault();
@@ -378,9 +389,9 @@ const DoctorHome = () => {
             <FileHeart className="w-6 h-6 mr-2 relative z-10 text-accent group-hover:scale-125 group-hover:animate-pulse-glow transition-all duration-300" />
             <span className="relative z-10 font-semibold">Manage Patients</span>
           </Button>
-          <Button 
+          <Button
             type="button"
-            variant="outline" 
+            variant="outline"
             className="w-full h-20 text-lg cursor-pointer relative overflow-hidden group border-2 hover:border-primary/50 hover:bg-primary/10 transition-all duration-300 hover:scale-105 shadow-md hover:shadow-[0_0_25px_rgba(34,197,94,0.3)]"
             onClick={(e) => {
               e.preventDefault();
@@ -394,9 +405,9 @@ const DoctorHome = () => {
             <FileHeart className="w-6 h-6 mr-2 relative z-10 text-primary group-hover:scale-125 group-hover:animate-pulse-glow transition-all duration-300" />
             <span className="relative z-10 font-semibold">Health Records</span>
           </Button>
-          <Button 
+          <Button
             type="button"
-            variant="outline" 
+            variant="outline"
             className="w-full h-20 text-lg cursor-pointer relative overflow-hidden group border-2 hover:border-blue-500/50 hover:bg-blue-500/10 transition-all duration-300 hover:scale-105 shadow-md hover:shadow-[0_0_25px_rgba(59,130,246,0.3)]"
             onClick={(e) => {
               e.preventDefault();
@@ -422,7 +433,7 @@ const RegisterUser = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { selectedCourse } = useCourse();
-  const { addPatient, refreshData } = usePatients();
+  const { patients, addPatient, refreshData } = usePatients();
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -440,42 +451,42 @@ const RegisterUser = () => {
 
   const handleSearch = async (query: string) => {
     setSearchQuery(query);
-    
-    if (query.length < 2) {
-      setSearchResults([]);
-      return;
-    }
 
-    if (!doctorCourseId) {
-      toast({
-        title: "Course Required",
-        description: "You must be assigned to a course to search for patients.",
-        variant: "destructive",
-      });
+    if (query.length < 2) {
       setSearchResults([]);
       return;
     }
 
     setIsSearching(true);
     try {
-      // Search users from the doctor's course only
-      const allUsers = await usersApi.getAll();
-      const filtered = allUsers.filter((user: any) => {
-        // Only include users from the doctor's course
-        const userCourseId = user.course_id || user.course?.id;
-        if (userCourseId !== doctorCourseId) {
-          return false;
-        }
+      // Search users using backend search optimization
+      // Include both 'trainee' role and course constraint if available
+      const searchParams: any = {
+        search: query,
+        role: 'trainee'
+      };
 
-        const searchLower = query.toLowerCase();
-        return (
-          (user.name && String(user.name).toLowerCase().includes(searchLower)) ||
-          (user.email && String(user.email).toLowerCase().includes(searchLower)) ||
-          (user.user_id && String(user.user_id).toLowerCase().includes(searchLower)) ||
-          (user.phone && String(user.phone).toLowerCase().includes(searchLower))
-        );
-      });
-      setSearchResults(filtered.slice(0, 10)); // Limit to 10 results
+      // If the doctor is assigned to a course, prioritize users in that course
+      // but if no results found, we'll try a broader search
+      if (doctorCourseId) {
+        searchParams.course_id = doctorCourseId;
+      }
+
+      let results = await usersApi.getAll(searchParams);
+
+      // If no results for trainees in this course, try searching all trainees
+      if (results.length === 0 && doctorCourseId) {
+        const broadParams = { search: query, role: 'trainee' };
+        results = await usersApi.getAll(broadParams);
+      }
+
+      // Filter out users who are already patients
+      const existingPatientUserIds = new Set(patients.map(p => String(p.id)));
+      const filteredResults = results.filter((u: any) =>
+        !existingPatientUserIds.has(String(u.id))
+      );
+
+      setSearchResults(filteredResults.slice(0, 10));
     } catch (error) {
       console.error("Error searching users:", error);
       toast({
@@ -510,7 +521,7 @@ const RegisterUser = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!selectedUser) {
       toast({
         title: "No User Selected",
@@ -549,7 +560,7 @@ const RegisterUser = () => {
         title: "Patient Registered",
         description: `${selectedUser.name} has been registered as a patient successfully`,
       });
-      
+
       // Reset form
       setSelectedUser(null);
       setFormData({
@@ -750,7 +761,7 @@ const HealthRecords = () => {
   const patientRecords = patients.map(patient => {
     const patientReports = reports.filter(r => r.patientId === patient.id);
     const latestReport = patientReports.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-    
+
     return {
       id: patient.id,
       name: patient.fullName,
@@ -787,32 +798,31 @@ const HealthRecords = () => {
           </Card>
         ) : (
           patientRecords.map((record) => (
-          <Card key={record.id} className="hover:shadow-lg transition-shadow">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <h3 className="font-semibold text-lg">{record.name}</h3>
-                  <div className="flex gap-4 text-sm text-muted-foreground">
-                    <span>Blood Type: {record.bloodType}</span>
-                    <span>Last Checkup: {record.lastCheckup}</span>
+            <Card key={record.id} className="hover:shadow-lg transition-shadow">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <h3 className="font-semibold text-lg">{record.name}</h3>
+                    <div className="flex gap-4 text-sm text-muted-foreground">
+                      <span>Blood Type: {record.bloodType}</span>
+                      <span>Last Checkup: {record.lastCheckup}</span>
+                    </div>
                   </div>
-                </div>
-                <div className="text-right">
-                  <span
-                    className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
-                      record.status === "Healthy"
+                  <div className="text-right">
+                    <span
+                      className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${record.status === "Healthy"
                         ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100"
                         : record.status === "Follow-up required"
-                        ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100"
-                        : "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100"
-                    }`}
-                  >
-                    {record.status}
-                  </span>
+                          ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100"
+                          : "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100"
+                        }`}
+                    >
+                      {record.status}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
           ))
         )}
       </div>

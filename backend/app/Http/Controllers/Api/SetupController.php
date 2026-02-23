@@ -20,7 +20,7 @@ class SetupController extends Controller
     {
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
-        
+
         // Set headers - Required fields first, then optional extended fields
         $headers = [
             'Name', // Required
@@ -67,9 +67,9 @@ class SetupController extends Controller
             'Relative 3 Relationship',
             'Relative 3 Phone',
         ];
-        
+
         $sheet->fromArray($headers, null, 'A1');
-        
+
         // Style header row
         $headerStyle = [
             'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
@@ -83,21 +83,56 @@ class SetupController extends Controller
         $lastColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(count($headers));
         $sheet->getStyle('A1:' . $lastColumn . '1')->applyFromArray($headerStyle);
         $sheet->getRowDimension(1)->setRowHeight(30);
-        
+
         // Set column widths
         $columnWidths = [
-            'A' => 25, 'B' => 30, 'C' => 20, 'D' => 25, 'E' => 15, 'F' => 30,
-            'G' => 18, 'H' => 20, 'I' => 20, 'J' => 20, 'K' => 15, 'L' => 20,
-            'M' => 20, 'N' => 20, 'O' => 20, 'P' => 20, 'Q' => 20, 'R' => 25,
-            'S' => 30, 'T' => 25, 'U' => 25, 'V' => 20, 'W' => 25, 'X' => 20,
-            'Y' => 25, 'Z' => 20, 'AA' => 20, 'AB' => 20, 'AC' => 20, 'AD' => 20,
-            'AE' => 20, 'AF' => 20, 'AG' => 20, 'AH' => 20, 'AI' => 20, 'AJ' => 20,
-            'AK' => 20, 'AL' => 20, 'AM' => 20, 'AN' => 20, 'AO' => 20, 'AP' => 20,
+            'A' => 25,
+            'B' => 30,
+            'C' => 20,
+            'D' => 25,
+            'E' => 15,
+            'F' => 30,
+            'G' => 18,
+            'H' => 20,
+            'I' => 20,
+            'J' => 20,
+            'K' => 15,
+            'L' => 20,
+            'M' => 20,
+            'N' => 20,
+            'O' => 20,
+            'P' => 20,
+            'Q' => 20,
+            'R' => 25,
+            'S' => 30,
+            'T' => 25,
+            'U' => 25,
+            'V' => 20,
+            'W' => 25,
+            'X' => 20,
+            'Y' => 25,
+            'Z' => 20,
+            'AA' => 20,
+            'AB' => 20,
+            'AC' => 20,
+            'AD' => 20,
+            'AE' => 20,
+            'AF' => 20,
+            'AG' => 20,
+            'AH' => 20,
+            'AI' => 20,
+            'AJ' => 20,
+            'AK' => 20,
+            'AL' => 20,
+            'AM' => 20,
+            'AN' => 20,
+            'AO' => 20,
+            'AP' => 20,
         ];
         foreach ($columnWidths as $col => $width) {
             $sheet->getColumnDimension($col)->setWidth($width);
         }
-        
+
         // Add example row with empty values for optional fields
         $exampleRow = array_fill(0, count($headers), '');
         $exampleRow[0] = 'John Doe';
@@ -106,21 +141,21 @@ class SetupController extends Controller
         $exampleRow[3] = 'Field Operations';
         $exampleRow[4] = 'trainee';
         // Leave other fields empty as examples
-        
+
         $sheet->fromArray([$exampleRow], null, 'A2');
-        
+
         // Add note
         $sheet->setCellValue('A4', 'Note: Role must be one of: trainee, instructor, doctor. All fields except Name, Email, and Role are optional.');
         $sheet->mergeCells('A4:' . $lastColumn . '4');
         $sheet->getStyle('A4')->getFont()->setItalic(true);
         $sheet->getStyle('A4')->getFont()->getColor()->setRGB('666666');
-        
+
         $writer = new Xlsx($spreadsheet);
-        
+
         $filename = 'user_import_template.xlsx';
         $tempFile = tempnam(sys_get_temp_dir(), $filename);
         $writer->save($tempFile);
-        
+
         return response()->download($tempFile, $filename, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ])->deleteFileAfterSend(true);
@@ -138,7 +173,7 @@ class SetupController extends Controller
             'adminPassword' => 'required|string|min:8',
             'adminPhone' => 'nullable|string',
             'adminDepartment' => 'nullable|string',
-            
+
             // Course fields
             'courseCode' => 'required|string|max:50|regex:/^[A-Z0-9]+$/|unique:courses,code',
             'courseName' => 'required|string|max:255',
@@ -147,7 +182,7 @@ class SetupController extends Controller
             'courseDescription' => 'nullable|string',
             'startDate' => 'required|date',
             'location' => 'nullable|string|max:255',
-            
+
             // Excel file
             'users_file' => 'nullable|file|mimes:xlsx,xls|max:10240', // 10MB max
         ]);
@@ -155,7 +190,7 @@ class SetupController extends Controller
         try {
             // Start transaction for creating course and admin
             DB::beginTransaction();
-            
+
             try {
                 // Create new course with code (each admin gets their own course)
                 $course = Course::create([
@@ -171,37 +206,50 @@ class SetupController extends Controller
                     'content' => null,
                 ]);
 
-                // Create admin user linked to the course (each admin has their own isolated course)
-                $admin = User::create([
-                    'name' => $validated['adminName'],
-                    'email' => $validated['adminEmail'],
-                    'password' => Hash::make($validated['adminPassword']),
-                    'role' => 'admin',
-                    'phone' => $validated['adminPhone'] ?? null,
-                    'department' => $validated['adminDepartment'] ?? null,
-                    'course_id' => $course->id, // Each admin is assigned to their own course
-                ]);
+                // Check if admin already exists
+                $admin = User::where('email', $validated['adminEmail'])->first();
+
+                if (!$admin) {
+                    // Create admin user
+                    $admin = User::create([
+                        'name' => $validated['adminName'],
+                        'email' => $validated['adminEmail'],
+                        'password' => Hash::make($validated['adminPassword']),
+                        'role' => 'admin',
+                        'phone' => $validated['adminPhone'] ?? null,
+                        'department' => $validated['adminDepartment'] ?? null,
+                    ]);
+                } else {
+                    // Update existing user to have admin role if they don't
+                    if ($admin->role !== 'super_admin') {
+                        $admin->role = 'admin';
+                        $admin->save();
+                    }
+                }
+
+                // Enroll admin in the new course
+                $admin->enrolledCourses()->attach($course->id);
 
                 // Process Excel file if provided
                 $importedUsers = 0;
                 $errors = [];
-                
+
                 if ($request->hasFile('users_file')) {
                     try {
                         $file = $request->file('users_file');
                         $spreadsheet = IOFactory::load($file->getRealPath());
                         $worksheet = $spreadsheet->getActiveSheet();
                         $rows = $worksheet->toArray();
-                        
+
                         // Skip header row (row 1) and example row (row 2)
                         for ($i = 2; $i < count($rows); $i++) {
                             $row = $rows[$i];
-                            
+
                             // Skip empty rows
                             if (empty($row[0]) || empty($row[1])) {
                                 continue;
                             }
-                            
+
                             // Required fields
                             $name = trim($row[0] ?? '');
                             $email = trim($row[1] ?? '');
@@ -209,7 +257,7 @@ class SetupController extends Controller
                             $department = trim($row[3] ?? '');
                             $role = strtolower(trim($row[4] ?? 'trainee'));
                             $userId = trim($row[5] ?? '');
-                            
+
                             // Extended fields (all optional)
                             $dateOfBirth = !empty($row[6]) ? trim($row[6]) : null;
                             $gender = !empty($row[7]) ? strtolower(trim($row[7])) : null;
@@ -237,7 +285,7 @@ class SetupController extends Controller
                             $fatherPhone = !empty($row[29]) ? trim($row[29]) : null;
                             $motherName = !empty($row[30]) ? trim($row[30]) : null;
                             $motherPhone = !empty($row[31]) ? trim($row[31]) : null;
-                            $numberOfChildren = !empty($row[32]) ? (int)trim($row[32]) : null;
+                            $numberOfChildren = !empty($row[32]) ? (int) trim($row[32]) : null;
                             $relative1Name = !empty($row[33]) ? trim($row[33]) : null;
                             $relative1Relationship = !empty($row[34]) ? trim($row[34]) : null;
                             $relative1Phone = !empty($row[35]) ? trim($row[35]) : null;
@@ -247,31 +295,31 @@ class SetupController extends Controller
                             $relative3Name = !empty($row[39]) ? trim($row[39]) : null;
                             $relative3Relationship = !empty($row[40]) ? trim($row[40]) : null;
                             $relative3Phone = !empty($row[41]) ? trim($row[41]) : null;
-                            
+
                             // Validate role
                             if (!in_array($role, ['trainee', 'instructor', 'doctor'])) {
                                 $errors[] = "Row " . ($i + 1) . ": Invalid role '{$role}'. Must be trainee, instructor, or doctor.";
                                 continue;
                             }
-                            
+
                             // Validate email
                             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
                                 $errors[] = "Row " . ($i + 1) . ": Invalid email '{$email}'.";
                                 continue;
                             }
-                            
+
                             // Validate gender if provided
                             if ($gender && !in_array($gender, ['male', 'female', 'other'])) {
                                 $errors[] = "Row " . ($i + 1) . ": Invalid gender '{$gender}'. Must be male, female, or other.";
                                 continue;
                             }
-                            
+
                             // Validate marital status if provided
                             if ($maritalStatus && !in_array($maritalStatus, ['single', 'married', 'divorced', 'widowed'])) {
                                 $errors[] = "Row " . ($i + 1) . ": Invalid marital status '{$maritalStatus}'. Must be single, married, divorced, or widowed.";
                                 continue;
                             }
-                            
+
                             // Validate date of birth if provided
                             $dateOfBirthFormatted = null;
                             if ($dateOfBirth) {
@@ -282,14 +330,14 @@ class SetupController extends Controller
                                     continue;
                                 }
                             }
-                            
+
                             // Generate user_id if not provided
                             if (empty($userId)) {
                                 $date = date('Ymd');
                                 $rolePrefix = $role === 'trainee' ? 'TR' : ($role === 'instructor' ? 'IN' : 'DR');
                                 $courseCode = $course->code;
                                 $counter = 1;
-                                
+
                                 do {
                                     $sequence = str_pad($counter, 3, '0', STR_PAD_LEFT);
                                     $userId = "{$courseCode}-{$date}-{$rolePrefix}{$sequence}";
@@ -302,7 +350,7 @@ class SetupController extends Controller
                                     continue;
                                 }
                             }
-                            
+
                             // Build skills array
                             $skills = [];
                             if ($skill1) {
@@ -311,7 +359,7 @@ class SetupController extends Controller
                             if ($skill2) {
                                 $skills[] = ['skill' => $skill2, 'university' => $skill2University ?: null];
                             }
-                            
+
                             // Build relatives array
                             $relatives = [];
                             if ($relative1Name) {
@@ -335,45 +383,66 @@ class SetupController extends Controller
                                     'phone' => $relative3Phone ?: null,
                                 ];
                             }
-                            
-                            // Create user without password (admin will set it later)
-                            User::create([
-                                'name' => $name,
-                                'email' => $email,
-                                'user_id' => $userId,
-                                'password' => Hash::make('temp_password_' . uniqid()), // Temporary password
-                                'role' => $role,
-                                'phone' => $phone ?: null,
-                                'department' => $department ?: null,
-                                'course_id' => $course->id,
-                                // Extended fields
-                                'date_of_birth' => $dateOfBirthFormatted,
-                                'gender' => $gender,
-                                'tribe' => $tribe,
-                                'religion' => $religion,
-                                'blood_group' => $bloodGroup,
-                                'national_id' => $nationalId,
-                                'birth_region' => $birthRegion,
-                                'birth_district' => $birthDistrict,
-                                'birth_street' => $birthStreet,
-                                'phone_2' => $phone2,
-                                'profession' => $profession,
-                                'university' => $university,
-                                'employment' => $employment,
-                                'other_education_level' => $otherEducationLevel,
-                                'other_education_university' => $otherEducationUniversity,
-                                'skills' => !empty($skills) ? $skills : null,
-                                'marital_status' => $maritalStatus,
-                                'spouse_name' => $spouseName,
-                                'spouse_phone' => $spousePhone,
-                                'father_name' => $fatherName,
-                                'father_phone' => $fatherPhone,
-                                'mother_name' => $motherName,
-                                'mother_phone' => $motherPhone,
-                                'number_of_children' => $numberOfChildren,
-                                'relatives' => !empty($relatives) ? $relatives : null,
-                            ]);
-                            
+
+                            // Create user or update existing
+                            $user = User::where('email', $email)->first();
+
+                            if (!$user) {
+                                // Create user without password (admin will set it later)
+                                $user = User::create([
+                                    'name' => $name,
+                                    'email' => $email,
+                                    'user_id' => $userId,
+                                    'password' => Hash::make('temp_password_' . uniqid()), // Temporary password
+                                    'role' => $role,
+                                    'phone' => $phone ?: null,
+                                    'department' => $department ?: null,
+                                    // Extended fields
+                                    'date_of_birth' => $dateOfBirthFormatted,
+                                    'gender' => $gender,
+                                    'tribe' => $tribe,
+                                    'religion' => $religion,
+                                    'blood_group' => $bloodGroup,
+                                    'national_id' => $nationalId,
+                                    'birth_region' => $birthRegion,
+                                    'birth_district' => $birthDistrict,
+                                    'birth_street' => $birthStreet,
+                                    'phone_2' => $phone2,
+                                    'profession' => $profession,
+                                    'university' => $university,
+                                    'employment' => $employment,
+                                    'other_education_level' => $otherEducationLevel,
+                                    'other_education_university' => $otherEducationUniversity,
+                                    'skills' => !empty($skills) ? $skills : null,
+                                    'marital_status' => $maritalStatus,
+                                    'spouse_name' => $spouseName,
+                                    'spouse_phone' => $spousePhone,
+                                    'father_name' => $fatherName,
+                                    'father_phone' => $fatherPhone,
+                                    'mother_name' => $motherName,
+                                    'mother_phone' => $motherPhone,
+                                    'number_of_children' => $numberOfChildren,
+                                    'relatives' => !empty($relatives) ? $relatives : null,
+                                ]);
+                            } else {
+                                // Update role and info if different
+                                if ($user->role !== $role) {
+                                    $user->role = $role;
+                                }
+                                if ($phone && $user->phone !== $phone) {
+                                    $user->phone = $phone;
+                                }
+                                if ($department && $user->department !== $department) {
+                                    $user->department = $department;
+                                }
+                                $user->save();
+                            }
+
+                            // Enroll in course
+                            if (!$user->enrolledCourses()->where('courses.id', $course->id)->exists()) {
+                                $user->enrolledCourses()->attach($course->id);
+                            }
+
                             $importedUsers++;
                         }
                     } catch (\Exception $e) {
@@ -427,7 +496,7 @@ class SetupController extends Controller
         // Always return true - setup is always available for new admins
         // Each admin can create their own course through setup
         $isSetup = User::where('role', 'admin')->exists();
-        
+
         return response()->json([
             'success' => true,
             'is_setup' => $isSetup,

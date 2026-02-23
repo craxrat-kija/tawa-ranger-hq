@@ -193,7 +193,7 @@ const CreateCourse = () => {
         <Card className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm">
           <CardHeader className="text-center space-y-4">
             <div className="flex justify-center">
-              <RotatingLogo className="w-20 h-20" />
+              <RotatingLogo className="w-24 h-24" />
             </div>
             <div>
               <CardTitle className="text-3xl font-bold">Create New Course</CardTitle>
@@ -202,7 +202,7 @@ const CreateCourse = () => {
               </CardDescription>
             </div>
           </CardHeader>
-          
+
           <CardContent>
             {/* Info Alert */}
             <Alert className="mb-6 bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
@@ -227,11 +227,10 @@ const CreateCourse = () => {
                       <div>
                         <span className="font-medium">{course.code || 'N/A'}</span> - {course.name}
                       </div>
-                      <span className={`px-2 py-1 rounded text-xs ${
-                        course.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100' :
-                        course.status === 'completed' ? 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100' :
-                        'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100'
-                      }`}>
+                      <span className={`px-2 py-1 rounded text-xs ${course.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100' :
+                          course.status === 'completed' ? 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100' :
+                            'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100'
+                        }`}>
                         {course.status}
                       </span>
                     </div>
@@ -251,7 +250,7 @@ const CreateCourse = () => {
                   <BookOpen className="w-5 h-5 text-primary" />
                   <h3 className="text-xl font-semibold">Course Information</h3>
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="courseCode">Course Code *</Label>
@@ -273,15 +272,15 @@ const CreateCourse = () => {
                         </SelectContent>
                       </Select>
                     ) : (
-                    <Input
-                      id="courseCode"
-                      value={formData.courseCode}
-                      onChange={(e) => setFormData({ ...formData, courseCode: e.target.value.toUpperCase() })}
-                      placeholder="e.g., TC2024, SC2024"
-                      required
-                      pattern="[A-Z0-9]+"
-                      title="Course code should contain only uppercase letters and numbers"
-                    />
+                      <Input
+                        id="courseCode"
+                        value={formData.courseCode}
+                        onChange={(e) => setFormData({ ...formData, courseCode: e.target.value.toUpperCase() })}
+                        placeholder="e.g., TC2024, SC2024"
+                        required
+                        pattern="[A-Z0-9]+"
+                        title="Course code should contain only uppercase letters and numbers"
+                      />
                     )}
                     <p className="text-xs text-muted-foreground">
                       {courseCodes.length === 0 && !loadingMetadata
@@ -289,7 +288,7 @@ const CreateCourse = () => {
                         : "Unique identifier for this course (e.g., TC2024)"}
                     </p>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="courseName">Course Name *</Label>
                     {courseNames.length > 0 ? (
@@ -310,13 +309,13 @@ const CreateCourse = () => {
                         </SelectContent>
                       </Select>
                     ) : (
-                    <Input
-                      id="courseName"
-                      value={formData.courseName}
-                      onChange={(e) => setFormData({ ...formData, courseName: e.target.value })}
-                      placeholder="e.g., Transformation Course"
-                      required
-                    />
+                      <Input
+                        id="courseName"
+                        value={formData.courseName}
+                        onChange={(e) => setFormData({ ...formData, courseName: e.target.value })}
+                        placeholder="e.g., Transformation Course"
+                        required
+                      />
                     )}
                     {courseNames.length === 0 && !loadingMetadata && (
                       <p className="text-xs text-muted-foreground">
@@ -324,7 +323,7 @@ const CreateCourse = () => {
                       </p>
                     )}
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="courseType">Course Type *</Label>
                     {courseTypes.length > 0 ? (
@@ -345,13 +344,13 @@ const CreateCourse = () => {
                         </SelectContent>
                       </Select>
                     ) : (
-                    <Input
-                      id="courseType"
-                      value={formData.courseType}
-                      onChange={(e) => setFormData({ ...formData, courseType: e.target.value })}
-                      placeholder="e.g., Transformation, Special, Recruit, Refresher"
-                      required
-                    />
+                      <Input
+                        id="courseType"
+                        value={formData.courseType}
+                        onChange={(e) => setFormData({ ...formData, courseType: e.target.value })}
+                        placeholder="e.g., Transformation, Special, Recruit, Refresher"
+                        required
+                      />
                     )}
                     {courseTypes.length === 0 && !loadingMetadata && (
                       <p className="text-xs text-muted-foreground">
@@ -359,7 +358,7 @@ const CreateCourse = () => {
                       </p>
                     )}
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="location">Location *</Label>
                     {locations.length > 0 ? (
@@ -394,7 +393,7 @@ const CreateCourse = () => {
                       </p>
                     )}
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="courseDuration">Duration *</Label>
                     <Input
@@ -405,7 +404,7 @@ const CreateCourse = () => {
                       required
                     />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="startDate">Start Date *</Label>
                     <Input
@@ -416,7 +415,7 @@ const CreateCourse = () => {
                       required
                     />
                   </div>
-                  
+
                   <div className="space-y-2 md:col-span-2">
                     <Label htmlFor="courseDescription">Course Description</Label>
                     <Textarea

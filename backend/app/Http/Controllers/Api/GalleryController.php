@@ -14,24 +14,26 @@ class GalleryController extends Controller
     {
         $currentUser = $request->user();
         $courseId = CourseHelper::getCurrentCourseId($currentUser);
-        
+
         $gallery = Gallery::with('uploader');
-        
-        // Admins and instructors can view all galleries across all courses
+
+        // Super admins, admins and instructors can view all galleries across all courses
         // Only filter by course for other roles (doctors, trainees)
-        if ($currentUser && in_array($currentUser->role, ['admin', 'instructor'])) {
-            // Admins and instructors can see all galleries
-            // No course filter applied
+        if ($currentUser && in_array($currentUser->role, ['super_admin', 'admin', 'instructor'])) {
+            // If they are specifically filtering by course in the request, respect it
+            if ($courseId) {
+                $gallery->where('course_id', $courseId);
+            }
         } elseif ($courseId) {
             $gallery->where('course_id', $courseId);
         }
-        
+
         // Search functionality
         if ($request->has('search')) {
             $search = $request->search;
             $gallery->where('title', 'like', "%{$search}%");
         }
-        
+
         $gallery = $gallery->orderBy('date', 'desc')->get();
 
         // Add full URL for each image
@@ -52,14 +54,14 @@ class GalleryController extends Controller
     {
         $currentUser = $request->user();
         $courseId = CourseHelper::getCurrentCourseId($currentUser);
-        
+
         if (!$courseId) {
             return response()->json([
                 'success' => false,
                 'message' => 'You must be assigned to a course to upload gallery photos.',
             ], 403);
         }
-        
+
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'image' => 'required|image|max:5120', // 5MB max
@@ -93,7 +95,7 @@ class GalleryController extends Controller
         // Admins and instructors can access all galleries
         $currentUser = $request->user();
         $courseId = CourseHelper::getCurrentCourseId($currentUser);
-        
+
         // Only check course restriction for non-admin and non-instructor roles
         if ($currentUser && !in_array($currentUser->role, ['admin', 'instructor', 'super_admin'])) {
             if ($courseId && $gallery->course_id !== $courseId) {
@@ -103,7 +105,7 @@ class GalleryController extends Controller
                 ], 403);
             }
         }
-        
+
         $gallery->load('uploader');
         $baseUrl = $request->getSchemeAndHttpHost();
         $gallery->image_url = $baseUrl . '/storage/' . $gallery->image_path;
@@ -119,7 +121,7 @@ class GalleryController extends Controller
         // Admins and instructors can delete all galleries
         $currentUser = $request->user();
         $courseId = CourseHelper::getCurrentCourseId($currentUser);
-        
+
         // Only check course restriction for non-admin and non-instructor roles
         if ($currentUser && !in_array($currentUser->role, ['admin', 'instructor', 'super_admin'])) {
             if ($courseId && $gallery->course_id !== $courseId) {
@@ -129,7 +131,7 @@ class GalleryController extends Controller
                 ], 403);
             }
         }
-        
+
         Storage::disk('public')->delete($gallery->image_path);
         $gallery->delete();
 

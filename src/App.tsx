@@ -10,7 +10,6 @@ import { CourseProvider } from "@/contexts/CourseContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 import { Loading } from "@/components/Loading";
 import { SetupChecker } from "@/components/SetupChecker";
-import LandingPage from "./pages/LandingPage";
 import Login from "./pages/Login";
 import SuperAdminLogin from "./pages/SuperAdminLogin";
 import Setup from "./pages/Setup";
@@ -23,20 +22,34 @@ const queryClient = new QueryClient();
 
 const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode; allowedRoles: string[] }) => {
   const { user, isAuthenticated, isLoading } = useAuth();
-  
+
   if (isLoading) {
     return <Loading />;
   }
-  
+
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
-  
+
   if (user && !allowedRoles.includes(user.role)) {
     return <Navigate to="/login" replace />;
   }
-  
+
   return <>{children}</>;
+};
+
+const SuperAdminRouteWrapper = () => {
+  const { user, isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return <Loading />;
+  }
+
+  if (!isAuthenticated || (user && user.role !== "super_admin")) {
+    return <SuperAdminLogin />;
+  }
+
+  return <AdminDashboard />;
 };
 
 const AppContent = () => {
@@ -49,41 +62,38 @@ const AppContent = () => {
     >
       <CourseProvider>
         <Routes>
-          <Route path="/" element={<LandingPage />} />
+          <Route path="/" element={<Login />} />
           <Route path="/login" element={<Login />} />
-          <Route path="/super-admin/login" element={<SuperAdminLogin />} />
-          <Route path="/setup" element={<Setup />} />
-          <Route 
-            path="/super-admin/*" 
+          <Route
+            path="/super-admin/*"
             element={
-              <ProtectedRoute allowedRoles={["super_admin"]}>
-                <AdminDashboard />
-              </ProtectedRoute>
-            } 
+              <SuperAdminRouteWrapper />
+            }
           />
-          <Route 
-            path="/admin/*" 
+          <Route path="/setup" element={<Setup />} />
+          <Route
+            path="/admin/*"
             element={
               <ProtectedRoute allowedRoles={["admin"]}>
                 <AdminDashboard />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/instructor/*" 
+          <Route
+            path="/instructor/*"
             element={
               <ProtectedRoute allowedRoles={["instructor"]}>
                 <InstructorDashboard />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/doctor/*" 
+          <Route
+            path="/doctor/*"
             element={
               <ProtectedRoute allowedRoles={["doctor"]}>
                 <DoctorDashboard />
               </ProtectedRoute>
-            } 
+            }
           />
           <Route path="*" element={<NotFound />} />
         </Routes>
@@ -94,11 +104,11 @@ const AppContent = () => {
 
 const AuthWrapper = ({ children }: { children: React.ReactNode }) => {
   const { isLoading } = useAuth();
-  
+
   if (isLoading) {
     return <Loading />;
   }
-  
+
   return <>{children}</>;
 };
 

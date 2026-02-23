@@ -1,7 +1,7 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -10,8 +10,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { usersApi, subjectsApi, coursesApi, apiRequest } from "@/lib/api";
-import { Edit, Trash2, UserPlus, Download, Upload, Search, BookOpen, Users, X, ChevronRight, ChevronLeft, FileSpreadsheet, Image, Camera, Eye, Plus, User, FileText, Trash } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Edit, Trash2, UserPlus, Download, Upload, Search, BookOpen, Users, X, ChevronRight, ChevronLeft, FileSpreadsheet, Image, Camera, Eye, Plus, User, FileText, Trash, Filter, MoreVertical, LayoutGrid, List, GraduationCap, Shield, PlusCircle, ChevronDown, Loader2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 interface User {
   id: string;
@@ -24,6 +29,7 @@ interface User {
   course_name?: string;
   user_id?: string;
   passport_picture?: string;
+  all_courses?: { id: number; name: string; code: string }[];
 }
 
 interface Course {
@@ -40,7 +46,7 @@ const RegisterUsers = () => {
   const isAdmin = user?.role === "admin" || user?.role === "super_admin";
   const isSuperAdmin = user?.role === "super_admin";
   const canCreateUsers = isSuperAdmin;
-  
+
   const [showForm, setShowForm] = useState(false);
   const [showExcelDialog, setShowExcelDialog] = useState(false);
   const [showPassportDialog, setShowPassportDialog] = useState(false);
@@ -57,6 +63,7 @@ const RegisterUsers = () => {
   const [excelFile, setExcelFile] = useState<File | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
+  const [roleFilter, setRoleFilter] = useState("all");
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -109,11 +116,18 @@ const RegisterUsers = () => {
     }
   }, [user]);
 
+  // Reset to page 1 when search or filter changes
   useEffect(() => {
-    if (user) {
-      loadUsers();
-    }
-  }, [user, selectedCourse, searchQuery]);
+    setCurrentPage(1);
+  }, [searchQuery, roleFilter, selectedCourse]);
+
+  // Handle loading users with a slight debounce for search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (user) loadUsers();
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [user, selectedCourse, searchQuery, roleFilter]);
 
   const loadCourses = async () => {
     try {
@@ -147,15 +161,15 @@ const RegisterUsers = () => {
       if (searchQuery) {
         params.search = searchQuery;
       }
-      
+
       // Use apiRequest with proper authentication
       const queryString = new URLSearchParams(params).toString();
       const endpoint = queryString ? `/users?${queryString}` : '/users';
-      
+
       const response = await apiRequest<any>(endpoint);
-      
+
       const usersData = Array.isArray(response) ? response : (response?.data || []);
-      
+
       const mappedUsers = usersData.map((u: any) => ({
         id: u.id.toString(),
         user_id: u.user_id || u.id.toString(),
@@ -167,14 +181,15 @@ const RegisterUsers = () => {
         course_id: u.course_id,
         course_name: u.course_name || null,
         passport_picture: u.passport_picture || null,
+        all_courses: u.all_courses || [],
       }));
-      
+
       // Debug: Log users with passport pictures
       const usersWithPictures = mappedUsers.filter((u: any) => u.passport_picture);
       if (usersWithPictures.length > 0) {
         console.log('Users with passport pictures:', usersWithPictures);
       }
-      
+
       setUsers(mappedUsers);
     } catch (error: any) {
       console.error('Error loading users:', error);
@@ -192,9 +207,9 @@ const RegisterUsers = () => {
   // Group users by course for super admin
   const usersByCourse = useMemo(() => {
     if (!isSuperAdmin) return {};
-    
+
     const grouped: Record<number, { course: Course; users: User[] }> = {};
-    
+
     courses.forEach(course => {
       const courseUsers = users.filter(u => u.course_id === course.id);
       grouped[course.id] = {
@@ -202,7 +217,7 @@ const RegisterUsers = () => {
         users: courseUsers,
       };
     });
-    
+
     // Add users without course
     const usersWithoutCourse = users.filter(u => !u.course_id || u.course_id === null);
     if (usersWithoutCourse.length > 0) {
@@ -211,21 +226,25 @@ const RegisterUsers = () => {
         users: usersWithoutCourse,
       };
     }
-    
+
     return grouped;
   }, [users, courses, isSuperAdmin]);
 
-  // Filtered users based on search and selected course
+  // Filtered users based on search, selected course, AND role
   const filteredUsers = useMemo(() => {
     let filtered = users;
-    
+
     if (selectedCourse && isSuperAdmin) {
       filtered = filtered.filter(u => u.course_id === selectedCourse.id);
     }
-    
+
+    if (roleFilter !== "all") {
+      filtered = filtered.filter(u => u.role === roleFilter);
+    }
+
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(u => 
+      filtered = filtered.filter(u =>
         u.name.toLowerCase().includes(query) ||
         u.email.toLowerCase().includes(query) ||
         (u.user_id ? String(u.user_id).toLowerCase().includes(query) : false) ||
@@ -234,9 +253,9 @@ const RegisterUsers = () => {
         u.role.toLowerCase().includes(query)
       );
     }
-    
+
     return filtered;
-  }, [users, selectedCourse, searchQuery, isSuperAdmin]);
+  }, [users, selectedCourse, searchQuery, roleFilter, isSuperAdmin]);
 
   // Paginated users
   const paginatedUsers = useMemo(() => {
@@ -246,19 +265,6 @@ const RegisterUsers = () => {
   }, [filteredUsers, currentPage, itemsPerPage]);
 
   const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
-
-  // Reset to page 1 when search or filter changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, selectedCourse]);
-
-  useEffect(() => {
-    const debounceTimer = setTimeout(() => {
-      loadUsers();
-    }, 300);
-    
-    return () => clearTimeout(debounceTimer);
-  }, [searchQuery, selectedCourse]);
 
   const handleDownloadTemplate = async () => {
     try {
@@ -290,14 +296,14 @@ const RegisterUsers = () => {
       setIsUploading(true);
       const courseId = selectedCourse ? selectedCourse.id : undefined;
       const result = await usersApi.importFromExcel(excelFile, courseId);
-      
+
       const importedCount = result.data?.imported || 0;
       const hasErrors = result.data?.errors && result.data.errors.length > 0;
-      
+
       if (importedCount === 0) {
         toast({
           title: "No Users Imported",
-          description: hasErrors 
+          description: hasErrors
             ? `No users were imported. ${result.data.errors.slice(0, 3).join(' ')}`
             : "No users were imported. Please check your Excel file format and ensure rows are not empty.",
           variant: "destructive",
@@ -308,7 +314,7 @@ const RegisterUsers = () => {
           description: result.message || `Successfully imported ${importedCount} user(s).${hasErrors ? ` Some errors occurred.` : ''}`,
         });
       }
-      
+
       setExcelFile(null);
       setShowExcelDialog(false);
       loadUsers();
@@ -375,7 +381,7 @@ const RegisterUsers = () => {
         'application/msword',
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
       ];
-      
+
       const invalidFiles = files.filter(file => !allowedTypes.includes(file.type));
       if (invalidFiles.length > 0) {
         toast({
@@ -408,7 +414,7 @@ const RegisterUsers = () => {
       }
 
       setSupportiveDocuments(files);
-      
+
       // Create previews for images
       const previews: string[] = [];
       files.forEach((file) => {
@@ -423,7 +429,7 @@ const RegisterUsers = () => {
           reader.readAsDataURL(file);
         }
       });
-      
+
       if (files.filter(f => !f.type.startsWith('image/')).length === files.length) {
         setSupportiveDocumentsPreview([]);
       }
@@ -433,7 +439,7 @@ const RegisterUsers = () => {
   const handleRemoveSupportiveDocument = (index: number) => {
     const newDocs = supportiveDocuments.filter((_, i) => i !== index);
     setSupportiveDocuments(newDocs);
-    
+
     // Update previews
     const imageDocs = newDocs.filter(f => f.type.startsWith('image/'));
     if (imageDocs.length > 0) {
@@ -451,7 +457,7 @@ const RegisterUsers = () => {
     } else {
       setSupportiveDocumentsPreview([]);
     }
-    
+
     if (supportiveDocsInputRef.current) {
       supportiveDocsInputRef.current.value = "";
     }
@@ -459,7 +465,7 @@ const RegisterUsers = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validate required fields
     if (!formData.name || !formData.email || !formData.role || !formData.phone || !formData.department) {
       toast({
@@ -469,7 +475,7 @@ const RegisterUsers = () => {
       });
       return;
     }
-    
+
     try {
       if (editUser) {
         // If passport picture is uploaded, use FormData
@@ -489,7 +495,7 @@ const RegisterUsers = () => {
             formDataToSend.append('subject_ids', '[]');
           }
           formDataToSend.append('passport_picture', passportPicture);
-          
+
           // Add extended fields
           if (formData.date_of_birth) formDataToSend.append('date_of_birth', formData.date_of_birth);
           if (formData.gender) formDataToSend.append('gender', formData.gender);
@@ -524,14 +530,14 @@ const RegisterUsers = () => {
           const validRelatives = relativesArray.filter((rel: any) => rel && rel.name && rel.name.trim() !== "");
           // Always send relatives as JSON string for FormData (even if empty array)
           formDataToSend.append('relatives', JSON.stringify(validRelatives));
-          
+
           // Add supportive documents for doctors
           if (formData.role === 'doctor' && supportiveDocuments.length > 0) {
             supportiveDocuments.forEach((doc, index) => {
               formDataToSend.append(`supportive_documents[${index}]`, doc);
             });
           }
-          
+
           formDataToSend.append('_method', 'PUT');
 
           const token = localStorage.getItem('auth_token');
@@ -582,7 +588,7 @@ const RegisterUsers = () => {
           } else if (formData.role === 'instructor') {
             updateData.subject_ids = [];
           }
-          
+
           // Add extended fields (only if they have values)
           if (formData.date_of_birth) updateData.date_of_birth = formData.date_of_birth;
           if (formData.gender) updateData.gender = formData.gender;
@@ -615,64 +621,64 @@ const RegisterUsers = () => {
           updateData.relatives = validRelatives; // Always send as array, even if empty
 
           try {
-          const response = await usersApi.update(editUser.id, updateData);
-          // Check if response indicates failure
-          if (response && typeof response === 'object') {
-            if ('success' in response && !response.success) {
-              // Check for validation errors
-              if (response.errors) {
-                const validationErrors = Object.entries(response.errors)
-                  .map(([field, messages]: [string, any]) => {
-                    const fieldName = field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                    const msgList = Array.isArray(messages) ? messages.join(', ') : String(messages);
-                    return `${fieldName}: ${msgList}`;
-                  })
-                  .join('\n');
-                throw new Error(`Validation failed:\n${validationErrors}`);
+            const response = await usersApi.update(editUser.id, updateData);
+            // Check if response indicates failure
+            if (response && typeof response === 'object') {
+              if ('success' in response && !response.success) {
+                // Check for validation errors
+                if (response.errors) {
+                  const validationErrors = Object.entries(response.errors)
+                    .map(([field, messages]: [string, any]) => {
+                      const fieldName = field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                      const msgList = Array.isArray(messages) ? messages.join(', ') : String(messages);
+                      return `${fieldName}: ${msgList}`;
+                    })
+                    .join('\n');
+                  throw new Error(`Validation failed:\n${validationErrors}`);
+                }
+                throw new Error(response.message || 'Failed to update user');
               }
-              throw new Error(response.message || 'Failed to update user');
-            }
-            if ('data' in response && response.data && typeof response.data === 'object' && 'success' in response.data && !response.data.success) {
-              // Check for validation errors in data
-              if (response.data.errors) {
-                const validationErrors = Object.entries(response.data.errors)
-                  .map(([field, messages]: [string, any]) => {
-                    const fieldName = field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                    const msgList = Array.isArray(messages) ? messages.join(', ') : String(messages);
-                    return `${fieldName}: ${msgList}`;
-                  })
-                  .join('\n');
-                throw new Error(`Validation failed:\n${validationErrors}`);
+              if ('data' in response && response.data && typeof response.data === 'object' && 'success' in response.data && !response.data.success) {
+                // Check for validation errors in data
+                if (response.data.errors) {
+                  const validationErrors = Object.entries(response.data.errors)
+                    .map(([field, messages]: [string, any]) => {
+                      const fieldName = field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                      const msgList = Array.isArray(messages) ? messages.join(', ') : String(messages);
+                      return `${fieldName}: ${msgList}`;
+                    })
+                    .join('\n');
+                  throw new Error(`Validation failed:\n${validationErrors}`);
+                }
+                throw new Error(response.data.message || 'Failed to update user');
               }
-              throw new Error(response.data.message || 'Failed to update user');
             }
-          }
-        } catch (apiError: any) {
-          // Re-throw with better error message if it's a validation error
-          if (apiError.message && apiError.message.includes('Validation failed')) {
+          } catch (apiError: any) {
+            // Re-throw with better error message if it's a validation error
+            if (apiError.message && apiError.message.includes('Validation failed')) {
+              throw apiError;
+            }
+            // Try to extract validation errors from the error object
+            if (apiError.response?.data?.errors) {
+              const validationErrors = Object.entries(apiError.response.data.errors)
+                .map(([field, messages]: [string, any]) => {
+                  const fieldName = field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                  const msgList = Array.isArray(messages) ? messages.join(', ') : String(messages);
+                  return `${fieldName}: ${msgList}`;
+                })
+                .join('\n');
+              throw new Error(`Validation failed:\n${validationErrors}`);
+            }
+            // If the error message already contains validation errors (from apiRequest), use it
+            if (apiError.message && apiError.message !== 'An error occurred') {
+              throw apiError;
+            }
             throw apiError;
           }
-          // Try to extract validation errors from the error object
-          if (apiError.response?.data?.errors) {
-            const validationErrors = Object.entries(apiError.response.data.errors)
-              .map(([field, messages]: [string, any]) => {
-                const fieldName = field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                const msgList = Array.isArray(messages) ? messages.join(', ') : String(messages);
-                return `${fieldName}: ${msgList}`;
-              })
-              .join('\n');
-            throw new Error(`Validation failed:\n${validationErrors}`);
-          }
-          // If the error message already contains validation errors (from apiRequest), use it
-          if (apiError.message && apiError.message !== 'An error occurred') {
-            throw apiError;
-          }
-          throw apiError;
-        }
-        toast({
-          title: "User Updated",
-          description: `${formData.name} has been updated successfully.`,
-        });
+          toast({
+            title: "User Updated",
+            description: `${formData.name} has been updated successfully.`,
+          });
         }
       } else {
         if (!canCreateUsers) {
@@ -683,7 +689,7 @@ const RegisterUsers = () => {
           });
           return;
         }
-        
+
         if (formData.role !== 'trainee' && !formData.password) {
           toast({
             title: "Password Required",
@@ -692,7 +698,7 @@ const RegisterUsers = () => {
           });
           return;
         }
-        
+
         // If doctor has supportive documents, use FormData
         if (formData.role === 'doctor' && supportiveDocuments.length > 0) {
           const formDataToSend = new FormData();
@@ -701,22 +707,22 @@ const RegisterUsers = () => {
           formDataToSend.append('role', formData.role);
           formDataToSend.append('phone', formData.phone);
           formDataToSend.append('department', formData.department);
-          
+
           if (formData.password) {
             formDataToSend.append('password', formData.password);
           }
-          
+
           // Add course_id if super admin and course is selected
           if (isSuperAdmin && selectedCourse) {
             formDataToSend.append('course_id', selectedCourse.id.toString());
           } else if (isSuperAdmin && formData.course_id) {
             formDataToSend.append('course_id', formData.course_id);
           }
-          
+
           if (formData.role === 'instructor' && selectedSubjects.length > 0) {
             selectedSubjects.forEach(id => formDataToSend.append('subject_ids[]', id.toString()));
           }
-          
+
           // Add supportive documents
           supportiveDocuments.forEach((doc, index) => {
             formDataToSend.append(`supportive_documents[${index}]`, doc);
@@ -740,7 +746,7 @@ const RegisterUsers = () => {
             } catch (e) {
               throw new Error(`HTTP error! status: ${response.status}`);
             }
-            
+
             if (errorData.errors) {
               const validationErrors = Object.entries(errorData.errors)
                 .map(([field, messages]: [string, any]) => {
@@ -753,7 +759,7 @@ const RegisterUsers = () => {
               (error as any).response = { data: errorData };
               throw error;
             }
-            
+
             const error = new Error(errorData.message || 'Failed to create user');
             (error as any).response = { data: errorData };
             throw error;
@@ -762,7 +768,7 @@ const RegisterUsers = () => {
           const responseData = await response.json();
           const registeredUser = responseData?.data || responseData;
           const userId = registeredUser?.user_id || 'User ID pending';
-          
+
           toast({
             title: "User Registered",
             description: `${formData.name} has been registered successfully. User ID: ${userId}`,
@@ -776,14 +782,14 @@ const RegisterUsers = () => {
             phone: formData.phone,
             department: formData.department,
           };
-          
+
           // Add course_id if super admin and course is selected
           if (isSuperAdmin && selectedCourse) {
             createData.course_id = selectedCourse.id;
           } else if (isSuperAdmin && formData.course_id) {
             createData.course_id = parseInt(formData.course_id);
           }
-          
+
           if (formData.password) {
             createData.password = formData.password;
           }
@@ -794,21 +800,21 @@ const RegisterUsers = () => {
           const response = await usersApi.create(createData);
           const registeredUser = response?.data || response;
           const userId = registeredUser?.user_id || 'User ID pending';
-          
+
           toast({
-            title: "User Registered",
-            description: `${formData.name} has been registered successfully. User ID: ${userId}`,
+            title: response?.message?.includes('Existing') ? "Existing User Enrolled" : "User Registered",
+            description: response?.message || `${formData.name} has been registered successfully. User ID: ${userId}`,
           });
         }
       }
 
-      setFormData({ 
-        name: "", 
-        email: "", 
-        role: "", 
-        phone: "", 
-        department: "", 
-        password: "", 
+      setFormData({
+        name: "",
+        email: "",
+        role: "",
+        phone: "",
+        department: "",
+        password: "",
         course_id: selectedCourse ? selectedCourse.id.toString() : "",
         date_of_birth: "",
         gender: "",
@@ -859,7 +865,7 @@ const RegisterUsers = () => {
         stack: error.stack
       });
       let errorMessage = "Failed to save user. Please try again.";
-      
+
       // Check for validation errors in different formats
       if (error.message && error.message.includes('Validation failed')) {
         errorMessage = error.message;
@@ -879,7 +885,7 @@ const RegisterUsers = () => {
       } else if (typeof error === 'string') {
         errorMessage = error;
       }
-      
+
       toast({
         title: "Error",
         description: errorMessage,
@@ -893,7 +899,7 @@ const RegisterUsers = () => {
     try {
       // Always fetch full user data to ensure all fields are populated
       const userData = await usersApi.getById(user.id);
-      
+
       setEditUser(user);
       setFormData({
         name: userData.name || user.name || "",
@@ -932,7 +938,7 @@ const RegisterUsers = () => {
       });
       setPassportPicture(null);
       setPassportPreview(null);
-      
+
       // Set current passport URL if user has one
       const passportPicture = userData.passport_picture || user.passport_picture;
       if (passportPicture) {
@@ -941,14 +947,14 @@ const RegisterUsers = () => {
       } else {
         setCurrentPassportUrl(null);
       }
-      
+
       // Set selected subjects for instructors
       if (userData.role === 'instructor' || user.role === 'instructor') {
         setSelectedSubjects(userData.subjects?.map((s: any) => s.id) || []);
       } else {
         setSelectedSubjects([]);
       }
-      
+
       setShowForm(true);
     } catch (error: any) {
       console.error('Error loading user data:', error);
@@ -973,10 +979,10 @@ const RegisterUsers = () => {
     try {
       const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
       const token = localStorage.getItem('auth_token');
-      
+
       // Use the API endpoint to download with proper CORS headers
       const downloadUrl = `${API_BASE_URL}/api/users/${viewingPassportUser.id}/passport-picture/download`;
-      
+
       // Fetch the image with authentication
       const response = await fetch(downloadUrl, {
         method: 'GET',
@@ -992,34 +998,34 @@ const RegisterUsers = () => {
 
       // Get the blob from response
       const blob = await response.blob();
-      
+
       // Extract filename from response headers or create one
       const contentDisposition = response.headers.get('content-disposition');
       let fileName = `passport_${viewingPassportUser.name.replace(/\s+/g, '_')}.jpg`;
-      
+
       if (contentDisposition) {
         const fileNameMatch = contentDisposition.match(/filename="?(.+)"?/i);
         if (fileNameMatch) {
           fileName = fileNameMatch[1];
         }
       }
-      
+
       // Create download link
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.download = fileName;
-      
+
       // Trigger download
       document.body.appendChild(link);
       link.click();
-      
+
       // Cleanup
       setTimeout(() => {
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
       }, 100);
-      
+
       toast({
         title: "Download Started",
         description: "Passport picture is being downloaded.",
@@ -1058,7 +1064,7 @@ const RegisterUsers = () => {
   };
 
   const getRoleColor = (role: string) => {
-    switch(role) {
+    switch (role) {
       case "admin": return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100";
       case "instructor": return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100";
       case "doctor": return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100";
@@ -1078,422 +1084,480 @@ const RegisterUsers = () => {
 
   if (authLoading || !user) {
     return (
-      <div className="space-y-6">
-        <div className="text-center py-8">Loading...</div>
+      <div className="flex h-[60vh] items-center justify-center">
+        <div className="text-center">
+          <Users className="mx-auto h-12 w-12 animate-pulse text-muted-foreground" />
+          <p className="mt-4 text-lg font-medium text-muted-foreground transition-all">Loading management portal...</p>
+        </div>
       </div>
     );
   }
 
+  const roleCounts = {
+    all: filteredUsers.length,
+    admin: users.filter(u => u.role === 'admin' && (!selectedCourse || u.course_id === selectedCourse.id)).length,
+    instructor: users.filter(u => u.role === 'instructor' && (!selectedCourse || u.course_id === selectedCourse.id)).length,
+    doctor: users.filter(u => u.role === 'doctor' && (!selectedCourse || u.course_id === selectedCourse.id)).length,
+    trainee: users.filter(u => u.role === 'trainee' && (!selectedCourse || u.course_id === selectedCourse.id)).length,
+  };
+
+  const statItems = [
+    { label: "Total Staff & Trainees", count: users.length, icon: Users, color: "text-primary", bg: "bg-primary/10" },
+    { label: "Instructors", count: users.filter(u => u.role === 'instructor').length, icon: BookOpen, color: "text-blue-600", bg: "bg-blue-50" },
+    { label: "Trainees", count: users.filter(u => u.role === 'trainee').length, icon: GraduationCap, color: "text-purple-600", bg: "bg-purple-50" },
+    { label: "Admin & Medical", count: users.filter(u => u.role === 'admin' || u.role === 'doctor').length, icon: Shield, color: "text-red-600", bg: "bg-red-50" },
+  ];
+
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center flex-wrap gap-4">
+    <div className="space-y-8 animate-in fade-in duration-500">
+      {/* Page Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-6">
         <div>
-          <h1 className="text-3xl font-bold text-primary">User Management</h1>
-          <p className="text-muted-foreground">
-            {isSuperAdmin 
-              ? "Manage all users across all courses" 
-              : isAdmin 
-                ? "Manage users in your course" 
-                : "View users in the system"}
+          <div className="flex items-center gap-2 text-primary mb-1">
+            <Users className="w-5 h-5" />
+            <span className="text-sm font-semibold uppercase tracking-wider">System Administration</span>
+          </div>
+          <h1 className="text-4xl font-extrabold tracking-tight text-foreground">User Management</h1>
+          <p className="text-muted-foreground mt-1 max-w-2xl">
+            {isSuperAdmin
+              ? "Comprehensive control over all accounts across the TAWA training ecosystem. Monitor, edit, and manage system-wide access."
+              : "Manage and oversee instructor, doctor, and trainee accounts within your assigned training course."}
           </p>
         </div>
-        {canCreateUsers && selectedCourse && (
-          <div className="flex gap-2">
-            <Button 
+
+        {!selectedCourse && isSuperAdmin && (
+          <div className="flex items-center gap-3">
+            <Button
               variant="outline"
               onClick={handleDownloadTemplate}
-              className="border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-950"
+              className="hidden md:flex border-green-600/20 text-green-700 hover:bg-green-50 hover:text-green-800 transition-all shadow-sm"
             >
-              <Download className="w-4 h-4 mr-2" />
-              Download Template
+              <FileSpreadsheet className="w-4 h-4 mr-2" />
+              Download Excel Template
             </Button>
-            <Button 
-              variant="outline"
+            <Button
               onClick={() => setShowExcelDialog(true)}
-              className="border-blue-500 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950"
+              className="bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all"
             >
               <Upload className="w-4 h-4 mr-2" />
-              Import Excel
-            </Button>
-            <Button 
-              className="bg-gradient-military" 
-              onClick={() => { 
-                setEditUser(null); 
-                setFormData({ 
-                  name: "", 
-                  email: "", 
-                  role: "", 
-                  phone: "", 
-                  department: "", 
-                  password: "", 
-                  course_id: selectedCourse.id.toString()
-                }); 
-                setSelectedSubjects([]);
-                setShowForm(true);
-              }}
-            >
-              <UserPlus className="w-4 h-4 mr-2" />
-              Add User to {selectedCourse.name}
+              Bulk Import
             </Button>
           </div>
         )}
       </div>
 
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {statItems.map((stat, idx) => (
+          <Card key={idx} className="border-none shadow-sm bg-card hover:shadow-md transition-shadow overflow-hidden group">
+            <div className={`h-1 w-full ${stat.bg.replace('/10', '')}`} />
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground uppercase tracking-tight">{stat.label}</p>
+                  <h3 className="text-3xl font-bold mt-1 tracking-tighter">{stat.count}</h3>
+                </div>
+                <div className={`p-3 rounded-2xl ${stat.bg} ${stat.color} group-hover:scale-110 transition-transform duration-300`}>
+                  <stat.icon className="w-6 h-6" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
       {/* Super Admin Course Cards View */}
       {isSuperAdmin && !selectedCourse && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {Object.entries(usersByCourse).map(([courseId, { course, users: courseUsers }]) => {
-            const counts = getRoleCounts(courseUsers);
-            const totalUsers = courseUsers.length;
-            
-            return (
-              <Card
-                key={courseId}
-                className="group hover:shadow-xl transition-all duration-300 hover:scale-105 border-2 hover:border-primary animate-slide-up flex flex-col"
-                style={{ animationDelay: `${parseInt(courseId) * 50}ms` }}
-              >
-                <CardHeader 
-                  className="bg-gradient-to-r from-primary/10 to-primary/5 cursor-pointer"
-                  onClick={() => setSelectedCourse(course)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="p-3 bg-primary/20 rounded-lg group-hover:scale-110 transition-transform">
-                        <BookOpen className="w-6 h-6 text-primary" />
-                      </div>
-                      <div>
-                        <CardTitle className="text-xl font-bold">{course.name}</CardTitle>
-                        {course.code && (
-                          <CardDescription className="text-sm font-medium">{course.code}</CardDescription>
-                        )}
-                      </div>
-                    </div>
-                    <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-6 flex-1 flex flex-col">
-                  <div className="space-y-3 flex-1">
-                    <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                      <div className="flex items-center gap-2">
-                        <Users className="w-5 h-5 text-primary" />
-                        <span className="font-semibold">Total Users</span>
-                      </div>
-                      <span className="text-2xl font-bold text-primary">{totalUsers}</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      {counts.admin > 0 && (
-                        <div className="p-2 bg-red-100 dark:bg-red-900 rounded text-center">
-                          <div className="text-xs text-red-600 dark:text-red-300">Admins</div>
-                          <div className="text-lg font-bold text-red-800 dark:text-red-200">{counts.admin}</div>
-                        </div>
-                      )}
-                      {counts.instructor > 0 && (
-                        <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded text-center">
-                          <div className="text-xs text-blue-600 dark:text-blue-300">Instructors</div>
-                          <div className="text-lg font-bold text-blue-800 dark:text-blue-200">{counts.instructor}</div>
-                        </div>
-                      )}
-                      {counts.doctor > 0 && (
-                        <div className="p-2 bg-green-100 dark:bg-green-900 rounded text-center">
-                          <div className="text-xs text-green-600 dark:text-green-300">Doctors</div>
-                          <div className="text-lg font-bold text-green-800 dark:text-green-200">{counts.doctor}</div>
-                        </div>
-                      )}
-                      {counts.trainee > 0 && (
-                        <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded text-center">
-                          <div className="text-xs text-purple-600 dark:text-purple-300">Trainees</div>
-                          <div className="text-lg font-bold text-purple-800 dark:text-purple-200">{counts.trainee}</div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* Action Buttons */}
-                  <div className="mt-4 pt-4 border-t space-y-2" onClick={(e) => e.stopPropagation()}>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleDownloadTemplate}
-                      className="w-full border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-950"
-                    >
-                      <Download className="w-4 h-4 mr-2" />
-                      Download Template
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedCourse(course);
-                        setShowExcelDialog(true);
-                      }}
-                      className="w-full border-blue-500 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950"
-                    >
-                      <Upload className="w-4 h-4 mr-2" />
-                      Import Excel
-                    </Button>
-                    <Button
-                      size="sm"
-                      className="w-full bg-gradient-military"
-                      onClick={() => {
-                        setSelectedCourse(course);
-                        setEditUser(null);
-                        setFormData({
-                          name: "",
-                          email: "",
-                          role: "",
-                          phone: "",
-                          department: "",
-                          password: "",
-                          course_id: course.id.toString(),
-                        });
-                        setSelectedSubjects([]);
-                        setShowForm(true);
-                      }}
-                    >
-                      <UserPlus className="w-4 h-4 mr-2" />
-                      Add User to {course.name}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Search Bar for Super Admin - Show after cards when viewing all courses */}
-      {isSuperAdmin && !selectedCourse && (
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-5 h-5" />
-          <Input
-            placeholder="Search all users across all courses by name, email, user ID, phone, department, or role..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-      )}
-
-      {/* Selected Course Header (Super Admin) */}
-      {isSuperAdmin && selectedCourse && (
-        <div className="flex items-center justify-between p-4 bg-primary/10 rounded-lg border border-primary/20">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setSelectedCourse(null)}
-              className="hover:bg-primary/20"
-            >
-              <X className="w-5 h-5" />
-            </Button>
-            <div>
-              <h2 className="text-2xl font-bold text-primary">{selectedCourse.name}</h2>
-              {selectedCourse.code && (
-                <p className="text-sm text-muted-foreground">Course Code: {selectedCourse.code}</p>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="text-sm text-muted-foreground">
-              {filteredUsers.length} user(s) in this course
-            </div>
-            {canCreateUsers && (
-              <Button 
-                size="sm"
-                className="bg-gradient-military" 
-                onClick={() => { 
-                  setEditUser(null); 
-                  setFormData({ 
-                    name: "", 
-                    email: "", 
-                    role: "", 
-                    phone: "", 
-                    department: "", 
-                    password: "", 
-                    course_id: selectedCourse.id.toString() 
-                  }); 
-                  setSelectedSubjects([]);
-                  setShowForm(true);
-                }}
-              >
-                <UserPlus className="w-4 h-4 mr-2" />
-                Add User to This Course
-              </Button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Search Bar - Only show when viewing users (not cards) */}
-      {(selectedCourse || !isSuperAdmin) && (
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-5 h-5" />
-          <Input
-            placeholder={
-              selectedCourse 
-                ? `Search users in ${selectedCourse.name} by name, email, user ID, phone, department, or role...`
-                : "Search users by name, email, user ID, phone, department, or role..."
-            }
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-      )}
-
-      {/* Users Table */}
-      {isLoading ? (
-        <div className="text-center py-8">Loading users...</div>
-      ) : filteredUsers.length === 0 ? (
-        <Card>
-          <CardContent className="text-center py-8 text-muted-foreground">
-            {searchQuery ? "No users found matching your search." : "No users found."}
-          </CardContent>
-        </Card>
-      ) : (
         <div className="space-y-6">
-          {/* Group by Role */}
-          {['admin', 'instructor', 'doctor', 'trainee'].map((role) => {
-            const roleUsers = paginatedUsers.filter(u => u.role === role);
-            if (roleUsers.length === 0) return null;
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <LayoutGrid className="w-6 h-6 text-primary" />
+              Active Training Courses
+            </h2>
+            <div className="flex items-center gap-2 bg-muted p-1 rounded-lg">
+              <Button variant="ghost" size="sm" className="bg-background shadow-sm h-8 px-3">
+                <LayoutGrid className="w-4 h-4 mr-2" />
+                Grid
+              </Button>
+              <Button variant="ghost" size="sm" className="h-8 px-3 text-muted-foreground opacity-50 cursor-not-allowed">
+                <List className="w-4 h-4 mr-2" />
+                List
+              </Button>
+            </div>
+          </div>
 
-            return (
-              <Card key={role} className="border-2 animate-slide-up hover:shadow-lg transition-shadow">
-                <CardHeader className="bg-gradient-to-r from-primary/10 to-primary/5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-2xl font-bold text-primary capitalize">{role}s</CardTitle>
-                      <CardDescription>Manage {role} accounts</CardDescription>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {Object.entries(usersByCourse).map(([courseId, { course, users: courseUsers }]) => {
+              const counts = getRoleCounts(courseUsers);
+
+              return (
+                <Card
+                  key={courseId}
+                  className="relative group hover:ring-2 hover:ring-primary/40 transition-all duration-300 shadow-sm hover:shadow-xl border-t-0 animate-in slide-in-from-bottom-2"
+                >
+                  <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-primary via-primary/80 to-primary/40 rounded-t-xl" />
+
+                  <CardHeader
+                    className="pb-4 cursor-pointer"
+                    onClick={() => setSelectedCourse(course)}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="space-y-1">
+                        <CardTitle className="text-xl font-bold group-hover:text-primary transition-colors">{course.name}</CardTitle>
+                        <Badge variant="secondary" className="font-mono text-[10px] letter-spacing-widest">
+                          {course.code || "NO-CODE"}
+                        </Badge>
+                      </div>
+                      <div className="p-2 bg-muted rounded-full group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+                        <ChevronRight className="w-5 h-5 group-hover:translate-x-0.5 transition-transform" />
+                      </div>
                     </div>
-                    <span className={`px-4 py-2 rounded-full text-sm font-medium ${getRoleColor(role)}`}>
-                      {roleUsers.length} {roleUsers.length === 1 ? role : `${role}s`}
-                    </span>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>User ID</TableHead>
-                        <TableHead>Email</TableHead>
-                        <TableHead>Phone</TableHead>
-                        <TableHead>Department</TableHead>
-                        {isSuperAdmin && <TableHead>Course</TableHead>}
-                        {isAdmin && <TableHead>Actions</TableHead>}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {roleUsers.map((user) => (
-                        <TableRow key={user.id} className="hover:bg-muted/50 transition-colors">
-                          <TableCell className="font-medium">{user.name}</TableCell>
-                          <TableCell className="font-mono text-sm">{user.user_id || user.id}</TableCell>
-                          <TableCell>{user.email}</TableCell>
-                          <TableCell>{user.phone || "N/A"}</TableCell>
-                          <TableCell>{user.department || "N/A"}</TableCell>
-                          {isSuperAdmin && (
-                            <TableCell>{user.course_name || "N/A"}</TableCell>
-                          )}
-                          {isAdmin && (
-                            <TableCell>
-                              <div className="flex gap-2">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    handleViewPassport(user);
-                                  }}
-                                  title={user.passport_picture ? "View passport picture" : "View passport picture (not available)"}
-                                  className={user.passport_picture ? "hover:bg-blue-50 dark:hover:bg-blue-950" : "hover:bg-muted/50 opacity-60"}
-                                >
-                                  <Eye className={`w-4 h-4 ${user.passport_picture ? "text-blue-600" : "text-muted-foreground"}`} />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleEdit(user)}
-                                  title="Edit user"
-                                  className="hover:bg-primary/10"
-                                >
-                                  <Edit className="w-4 h-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleDelete(user.id)}
-                                  title="Delete user"
-                                  className="hover:bg-destructive/10"
-                                >
-                                  <Trash2 className="w-4 h-4 text-destructive" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          )}
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
-            );
-          })}
+                  </CardHeader>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between pt-6 border-t">
-              <div className="text-sm text-muted-foreground">
-                Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredUsers.length)} of {filteredUsers.length} users
-              </div>
-              <div className="flex items-center gap-2">
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center justify-between p-3 bg-muted/40 rounded-xl border border-dashed">
+                      <div className="flex items-center gap-2">
+                        <Users className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">Enrolled Staff</span>
+                      </div>
+                      <span className="text-lg font-bold">{courseUsers.length}</span>
+                    </div>
+
+                    <div className="grid grid-cols-4 gap-2">
+                      {['admin', 'instructor', 'doctor', 'trainee'].map((role) => {
+                        const count = counts[role as keyof typeof counts] || 0;
+                        return (
+                          <TooltipProvider key={role}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="flex flex-col items-center p-2 bg-muted/20 rounded-lg border border-transparent hover:border-border transition-colors">
+                                  <div className={`w-2 h-2 rounded-full mb-1 ${role === 'admin' ? 'bg-red-500' :
+                                    role === 'instructor' ? 'bg-blue-500' :
+                                      role === 'doctor' ? 'bg-green-500' : 'bg-purple-500'
+                                    }`} />
+                                  <span className="text-xs font-bold">{count}</span>
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent><p className="capitalize">{role}s</p></TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+
+                  <CardFooter className="pt-0 pb-6">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" className="w-full justify-between hover:bg-primary/5 hover:text-primary transition-colors">
+                          <PlusCircle className="w-4 h-4 mr-2" />
+                          Course Actions
+                          <ChevronDown className="w-4 h-4 ml-2" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuItem onClick={() => setSelectedCourse(course)}>
+                          <Eye className="w-4 h-4 mr-2" /> View Course Portal
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => {
+                          setSelectedCourse(course);
+                          setEditUser(null);
+                          setFormData({ name: "", email: "", role: "", phone: "", department: "", password: "", course_id: course.id.toString() });
+                          setSelectedSubjects([]);
+                          setShowForm(true);
+                        }}>
+                          <UserPlus className="w-4 h-4 mr-2" /> Add Single User
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => {
+                          setSelectedCourse(course);
+                          setShowExcelDialog(true);
+                        }}>
+                          <Upload className="w-4 h-4 mr-2" /> Import Excel
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleDownloadTemplate} className="text-green-600">
+                          <Download className="w-4 h-4 mr-2" /> Excel Template
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </CardFooter>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Detail View (Selected Course) */}
+      {(selectedCourse || !isSuperAdmin) && (
+        <Card className="border-none shadow-xl bg-card/50 backdrop-blur-sm overflow-hidden animate-in zoom-in-95 duration-300">
+          <div className="p-1 bg-gradient-to-r from-primary/40 via-primary/20 to-transparent" />
+
+          <div className="p-6 space-y-6">
+            {/* Context Navigation (Super Admin) */}
+            {isSuperAdmin && selectedCourse && (
+              <div className="flex items-center gap-4 border-b pb-4">
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
+                  onClick={() => setSelectedCourse(null)}
+                  className="hover:bg-primary/10 text-primary"
                 >
                   <ChevronLeft className="w-4 h-4 mr-1" />
-                  Previous
+                  All Courses
                 </Button>
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    let pageNum;
-                    if (totalPages <= 5) {
-                      pageNum = i + 1;
-                    } else if (currentPage <= 3) {
-                      pageNum = i + 1;
-                    } else if (currentPage >= totalPages - 2) {
-                      pageNum = totalPages - 4 + i;
-                    } else {
-                      pageNum = currentPage - 2 + i;
-                    }
-                    return (
-                      <Button
-                        key={pageNum}
-                        variant={currentPage === pageNum ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setCurrentPage(pageNum)}
-                        className="min-w-[40px]"
-                      >
-                        {pageNum}
-                      </Button>
-                    );
-                  })}
+                <div className="h-4 w-px bg-border" />
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-primary/20 text-primary border-none">{selectedCourse.code || "CS"}</Badge>
+                  <h2 className="text-lg font-bold">{selectedCourse.name}</h2>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                >
-                  Next
-                  <ChevronRight className="w-4 h-4 ml-1" />
-                </Button>
+              </div>
+            )}
+
+            {/* Filter Tabs and Actions Toolbar */}
+            <div className="flex flex-col xl:flex-row gap-4 items-start xl:items-center justify-between">
+              <Tabs defaultValue="all" value={roleFilter} onValueChange={setRoleFilter} className="w-full xl:w-auto">
+                <TabsList className="bg-muted/50 p-1 h-12 w-full sm:w-auto justify-start border overflow-x-auto no-scrollbar">
+                  <TabsTrigger value="all" className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-4 h-9">
+                    All Roles <Badge variant="secondary" className="ml-2 bg-muted">{users.filter(u => !selectedCourse || u.course_id === selectedCourse.id).length}</Badge>
+                  </TabsTrigger>
+                  <TabsTrigger value="admin" className="data-[state=active]:bg-background data-[state=active]:text-red-600 px-4 h-9">
+                    Admins <Badge variant="secondary" className="ml-2 text-red-600">{roleCounts.admin}</Badge>
+                  </TabsTrigger>
+                  <TabsTrigger value="instructor" className="data-[state=active]:bg-background data-[state=active]:text-blue-600 px-4 h-9">
+                    Instructors <Badge variant="secondary" className="ml-2 text-blue-600">{roleCounts.instructor}</Badge>
+                  </TabsTrigger>
+                  <TabsTrigger value="doctor" className="data-[state=active]:bg-background data-[state=active]:text-green-600 px-4 h-9">
+                    Medical <Badge variant="secondary" className="ml-2 text-green-600">{roleCounts.doctor}</Badge>
+                  </TabsTrigger>
+                  <TabsTrigger value="trainee" className="data-[state=active]:bg-background data-[state=active]:text-purple-600 px-4 h-9">
+                    Trainees <Badge variant="secondary" className="ml-2 text-purple-600">{roleCounts.trainee}</Badge>
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+
+              <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto">
+                <div className="relative flex-1 sm:min-w-[300px]">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search name, ID or department..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9 h-11 bg-muted/30 border-none focus-visible:ring-1 hover:bg-muted/50 transition-colors"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    className="h-11 px-4 border-dashed hover:border-primary hover:text-primary transition-all"
+                    onClick={() => setShowExcelDialog(true)}
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    Import
+                  </Button>
+                  <Button
+                    className="h-11 px-6 bg-primary shadow-lg shadow-primary/20 hover:shadow-xl transition-all"
+                    onClick={() => setShowForm(true)}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add User
+                  </Button>
+                </div>
               </div>
             </div>
-          )}
-        </div>
+
+            {/* Main Users Table */}
+            <div className="rounded-xl border bg-background/50 overflow-hidden">
+              <Table>
+                <TableHeader className="bg-muted/30">
+                  <TableRow>
+                    <TableHead className="w-[300px] py-4">Full Identity</TableHead>
+                    <TableHead className="py-4 font-semibold">User Access ID</TableHead>
+                    <TableHead className="py-4 font-semibold">Contact Details</TableHead>
+                    <TableHead className="py-4 font-semibold">Operational Unit</TableHead>
+                    {isSuperAdmin && <TableHead className="py-4 font-semibold">Course Enrollments</TableHead>}
+                    <TableHead className="text-right py-4 font-bold pr-6">Status & Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="h-64 text-center">
+                        <div className="flex flex-col items-center justify-center gap-3">
+                          <Loader2 className="w-10 h-10 animate-spin text-primary" />
+                          <p className="text-muted-foreground animate-pulse">Synchronizing user data...</p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : paginatedUsers.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="h-64 text-center">
+                        <div className="flex flex-col items-center justify-center gap-4">
+                          <div className="p-4 bg-muted rounded-full">
+                            <Search className="w-10 h-10 text-muted-foreground" />
+                          </div>
+                          <div>
+                            <h4 className="text-xl font-bold">No Staff Found</h4>
+                            <p className="text-muted-foreground mt-1 text-sm max-w-xs mx-auto">
+                              We couldn't find any user profiles matching your current filters or search query.
+                            </p>
+                          </div>
+                          <Button variant="outline" size="sm" onClick={() => { setSearchQuery(""); setRoleFilter("all") }}>
+                            Reset All Filters
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    paginatedUsers.map((user) => (
+                      <TableRow key={user.id} className="group hover:bg-muted/30 transition-colors">
+                        <TableCell className="py-4">
+                          <div className="flex items-center gap-4">
+                            <Avatar className="h-12 w-12 border-2 border-background shadow-sm group-hover:scale-105 transition-transform">
+                              <AvatarImage src={user.passport_picture} />
+                              <AvatarFallback className={getRoleColor(user.role)}>
+                                {user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex flex-col">
+                              <span className="font-bold text-base tracking-tight">{user.name}</span>
+                              <span className="text-xs text-muted-foreground font-mono">{user.email}</span>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-5 font-mono text-sm tracking-tighter">
+                          <Badge variant="outline" className="font-mono bg-muted/20 border-none px-3 py-1">
+                            {user.user_id || user.id}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="py-5">
+                          <div className="flex flex-col text-sm">
+                            <span className="font-medium underline decoration-primary/30 underline-offset-4">{user.phone || "No Phone"}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-5">
+                          <Badge variant="secondary" className="bg-muted text-foreground/80 font-semibold px-2">
+                            {user.department || "N/A"}
+                          </Badge>
+                        </TableCell>
+                        {isSuperAdmin && (
+                          <TableCell className="py-5">
+                            <div className="flex flex-wrap gap-1 max-w-[200px]">
+                              {user.all_courses && user.all_courses.length > 0 ? (
+                                user.all_courses.map((c, i) => (
+                                  <Badge
+                                    key={i}
+                                    variant="outline"
+                                    className="text-[10px] bg-primary/5 text-primary border-primary/20 whitespace-nowrap"
+                                  >
+                                    {c.code || "CS"}: {c.name.length > 15 ? c.name.substring(0, 15) + '...' : c.name}
+                                  </Badge>
+                                ))
+                              ) : (
+                                <span className="text-xs text-muted-foreground italic">None Assigned</span>
+                              )}
+                            </div>
+                          </TableCell>
+                        )}
+                        <TableCell className="py-5 text-right pr-6">
+                          <div className="flex items-center justify-end gap-2">
+                            {user.passport_picture && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => handleViewPassport(user)}
+                                      className="h-8 w-8 text-blue-600 hover:bg-blue-50"
+                                    >
+                                      <Eye className="w-4 h-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>View Documents</TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted">
+                                  <MoreVertical className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-44">
+                                <DropdownMenuItem onClick={() => handleEdit(user)}>
+                                  <Edit className="w-4 h-4 mr-2" /> Edit Profile
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => navigate(`/admin/users/${user.id}/profile`)}>
+                                  <User className="w-4 h-4 mr-2" /> View Detailed Page
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-red-600 focus:text-red-600"
+                                  onClick={() => handleDelete(user.id)}
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" /> Terminate Access
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Pagination Design */}
+            {totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t px-2 text-sm">
+                <p className="text-muted-foreground">
+                  Showing <span className="font-bold text-foreground">{((currentPage - 1) * itemsPerPage) + 1}</span> to <span className="font-bold text-foreground">{Math.min(currentPage * itemsPerPage, filteredUsers.length)}</span> of <span className="font-bold text-foreground">{filteredUsers.length}</span> results
+                </p>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-9 px-3"
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="w-4 h-4 mr-1" /> Prev
+                  </Button>
+
+                  <div className="flex items-center gap-1 mx-2">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                      .filter(num => num === 1 || num === totalPages || (num >= currentPage - 1 && num <= currentPage + 1))
+                      .map((num, idx, arr) => (
+                        <React.Fragment key={num}>
+                          {idx > 0 && arr[idx - 1] !== num - 1 && <span className="px-2">...</span>}
+                          <Button
+                            variant={currentPage === num ? "default" : "ghost"}
+                            size="sm"
+                            className="h-9 w-9 p-0 font-bold transition-all"
+                            onClick={() => setCurrentPage(num)}
+                          >
+                            {num}
+                          </Button>
+                        </React.Fragment>
+                      ))}
+                  </div>
+
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-9 px-4"
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    Next <ChevronRight className="w-4 h-4 ml-1" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </Card>
       )}
 
       {/* Add/Edit User Dialog */}
@@ -1534,14 +1598,14 @@ const RegisterUsers = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="role">Role *</Label>
-                  <Select 
-                    value={formData.role} 
+                  <Select
+                    value={formData.role}
                     onValueChange={(value) => {
                       setFormData({ ...formData, role: value });
                       if (value !== 'instructor') {
                         setSelectedSubjects([]);
                       }
-                    }} 
+                    }}
                     required
                   >
                     <SelectTrigger>
@@ -1581,8 +1645,8 @@ const RegisterUsers = () => {
                 {isSuperAdmin && !editUser && (
                   <div className="space-y-2 col-span-2">
                     <Label htmlFor="course_id">Assign to Course *</Label>
-                    <Select 
-                      value={formData.course_id || (selectedCourse ? selectedCourse.id.toString() : undefined)} 
+                    <Select
+                      value={formData.course_id || (selectedCourse ? selectedCourse.id.toString() : undefined)}
                       onValueChange={(value) => setFormData({ ...formData, course_id: value })}
                       required
                       disabled={!!selectedCourse}
@@ -1678,9 +1742,9 @@ const RegisterUsers = () => {
                     <div className="space-y-3">
                       {currentPassportUrl && !passportPreview && (
                         <div className="relative inline-block">
-                          <img 
-                            src={currentPassportUrl} 
-                            alt="Current passport picture" 
+                          <img
+                            src={currentPassportUrl}
+                            alt="Current passport picture"
                             className="w-32 h-40 object-cover border-2 border-gray-300 rounded-lg"
                           />
                           <p className="text-xs text-muted-foreground mt-1">Current picture</p>
@@ -1688,9 +1752,9 @@ const RegisterUsers = () => {
                       )}
                       {passportPreview && (
                         <div className="relative inline-block">
-                          <img 
-                            src={passportPreview} 
-                            alt="New passport picture preview" 
+                          <img
+                            src={passportPreview}
+                            alt="New passport picture preview"
                             className="w-32 h-40 object-cover border-2 border-primary rounded-lg"
                           />
                           <Button
@@ -1827,8 +1891,8 @@ const RegisterUsers = () => {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="gender">Gender</Label>
-                      <Select 
-                        value={formData.gender} 
+                      <Select
+                        value={formData.gender}
                         onValueChange={(value) => setFormData({ ...formData, gender: value })}
                       >
                         <SelectTrigger>
@@ -1861,8 +1925,8 @@ const RegisterUsers = () => {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="blood_group">Blood Group</Label>
-                      <Select 
-                        value={formData.blood_group} 
+                      <Select
+                        value={formData.blood_group}
                         onValueChange={(value) => setFormData({ ...formData, blood_group: value })}
                       >
                         <SelectTrigger>
@@ -1992,8 +2056,8 @@ const RegisterUsers = () => {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="marital_status">Marital Status</Label>
-                      <Select 
-                        value={formData.marital_status} 
+                      <Select
+                        value={formData.marital_status}
                         onValueChange={(value) => setFormData({ ...formData, marital_status: value })}
                       >
                         <SelectTrigger>
@@ -2165,12 +2229,12 @@ const RegisterUsers = () => {
               </div>
 
               <div className="flex justify-end gap-2 pt-4 border-t">
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => { 
-                    setShowForm(false); 
-                    setEditUser(null); 
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setShowForm(false);
+                    setEditUser(null);
                     setSelectedSubjects([]);
                     setPassportPicture(null);
                     setPassportPreview(null);
@@ -2178,13 +2242,13 @@ const RegisterUsers = () => {
                     if (fileInputRef.current) {
                       fileInputRef.current.value = "";
                     }
-                    setFormData({ 
-                      name: "", 
-                      email: "", 
-                      role: "", 
-                      phone: "", 
-                      department: "", 
-                      password: "", 
+                    setFormData({
+                      name: "",
+                      email: "",
+                      role: "",
+                      phone: "",
+                      department: "",
+                      password: "",
                       course_id: selectedCourse ? selectedCourse.id.toString() : "",
                       date_of_birth: "",
                       gender: "",
@@ -2216,8 +2280,8 @@ const RegisterUsers = () => {
                 >
                   Cancel
                 </Button>
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   className="bg-gradient-military"
                   disabled={formData.role === 'instructor' && selectedSubjects.length === 0}
                 >
@@ -2243,7 +2307,7 @@ const RegisterUsers = () => {
               {viewingPassportUser.passport_picture ? (
                 <>
                   <div className="flex justify-center">
-                    <img 
+                    <img
                       src={`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/storage/${viewingPassportUser.passport_picture}`}
                       alt={`${viewingPassportUser.name}'s passport picture`}
                       className="max-w-full h-auto rounded-lg border-2 border-gray-300 shadow-lg"
@@ -2278,7 +2342,7 @@ const RegisterUsers = () => {
               )}
               <div className="flex justify-end gap-2">
                 {viewingPassportUser.passport_picture && (
-                  <Button 
+                  <Button
                     variant="outline"
                     onClick={handleDownloadPassport}
                     className="border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-950"
@@ -2300,14 +2364,14 @@ const RegisterUsers = () => {
       {canCreateUsers && (
         <Dialog open={showExcelDialog} onOpenChange={setShowExcelDialog}>
           <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Import Users from Excel</DialogTitle>
-                <DialogDescription>
-                  {selectedCourse 
-                    ? `Upload a filled Excel file to import multiple users to ${selectedCourse.name}.`
-                    : "Upload a filled Excel file to import multiple users at once."}
-                </DialogDescription>
-              </DialogHeader>
+            <DialogHeader>
+              <DialogTitle>Import Users from Excel</DialogTitle>
+              <DialogDescription>
+                {selectedCourse
+                  ? `Upload a filled Excel file to import multiple users to ${selectedCourse.name}.`
+                  : "Upload a filled Excel file to import multiple users at once."}
+              </DialogDescription>
+            </DialogHeader>
             <div className="space-y-4">
               <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
                 <div className="flex items-center gap-3">
@@ -2322,7 +2386,7 @@ const RegisterUsers = () => {
                   Download
                 </Button>
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="excel-file">Select Excel File</Label>
                 <Input
@@ -2341,8 +2405,8 @@ const RegisterUsers = () => {
               {isSuperAdmin && courses.length > 0 && (
                 <div className="space-y-2">
                   <Label htmlFor="course-select">Assign to Course {selectedCourse ? "(Selected)" : "(Optional)"}</Label>
-                  <Select 
-                    value={selectedCourse?.id.toString() || "none"} 
+                  <Select
+                    value={selectedCourse?.id.toString() || "none"}
                     onValueChange={(value) => {
                       if (value === "none") {
                         setSelectedCourse(null);
@@ -2373,8 +2437,8 @@ const RegisterUsers = () => {
               )}
 
               <div className="flex justify-end gap-2 pt-4 border-t">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={() => {
                     setShowExcelDialog(false);
                     setExcelFile(null);
@@ -2382,7 +2446,7 @@ const RegisterUsers = () => {
                 >
                   Cancel
                 </Button>
-                <Button 
+                <Button
                   onClick={handleExcelUpload}
                   disabled={!excelFile || isUploading}
                   className="bg-gradient-military"

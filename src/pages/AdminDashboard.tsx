@@ -58,14 +58,20 @@ import {
   AlertTriangle,
   Tag,
   User,
+  LayoutGrid,
+  BarChart3,
+  Globe,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { usersApi, materialsApi, coursesApi, subjectsApi, galleryApi, adminPermissionsApi } from "@/lib/api";
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from "recharts";
+import { useCourse } from "@/contexts/CourseContext";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const AdminDashboard = () => {
   const { logout, user } = useAuth();
+  const { selectedCourse, setSelectedCourse } = useCourse();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [openDropdowns, setOpenDropdowns] = useState<Record<string, boolean>>({
@@ -145,7 +151,7 @@ const AdminDashboard = () => {
         setPermissionsLoading(false);
       }
     }
-  }, [user]);
+  }, [user, selectedCourse]);
 
   const loadPermissions = async () => {
     try {
@@ -177,15 +183,13 @@ const AdminDashboard = () => {
   const loadStats = async () => {
     try {
       setStatsLoading(true);
-      const usersPromise = usersApi.getAll();
-      const materialsPromise = materialsApi.getAll();
-      const coursesPromise = isSuperAdmin
-        ? coursesApi.getAll()
-        : user?.course_id
-          ? coursesApi.getById(user.course_id.toString())
-          : Promise.resolve([]);
-      const subjectsPromise = subjectsApi.getAll();
-      const galleryPromise = galleryApi.getAll();
+      const usersPromise = usersApi.getAll(selectedCourse ? { course_id: selectedCourse.id } : undefined);
+      const materialsPromise = materialsApi.getAll(selectedCourse ? { course_id: selectedCourse.id } : undefined);
+      const coursesPromise = selectedCourse
+        ? coursesApi.getById(selectedCourse.id.toString())
+        : (isSuperAdmin ? coursesApi.getAll() : Promise.resolve([]));
+      const subjectsPromise = subjectsApi.getAll(selectedCourse ? { course_id: selectedCourse.id } : undefined);
+      const galleryPromise = galleryApi.getAll(selectedCourse ? { course_id: selectedCourse.id } : undefined);
 
       const [usersData, materialsData, coursesData, subjectsData, galleryData] = await Promise.all([
         usersPromise,
@@ -292,7 +296,7 @@ const AdminDashboard = () => {
       setStatsLoading(false);
     }
   };
-  
+
   // Determine base path based on role
   const basePath = isSuperAdmin ? "/super-admin" : "/admin";
 
@@ -311,87 +315,80 @@ const AdminDashboard = () => {
 
   // Build menu structure with groups - reorganized for better UX
   const menuGroups = [
-    // Dashboard (always first, no dropdown)
     {
       type: "single",
-      item: { icon: Users, label: "Dashboard", path: basePath, permission: null },
+      item: { icon: LayoutGrid, label: "Dashboard", path: basePath, permission: null },
       separator: false
     },
-    // Academic Group - Most frequently used, placed early
     {
       type: "group",
       key: "academic",
       icon: BookOpen,
       label: "Academic Management",
       items: [
-        { icon: BookOpen, label: "Subjects", path: `${basePath}/subjects`, permission: "can_manage_subjects" },
-        { icon: Calendar, label: "Timetable", path: `${basePath}/timetable`, permission: "can_manage_timetable" },
-        { icon: Upload, label: "Materials", path: `${basePath}/materials`, permission: "can_manage_materials" },
-        { icon: Image, label: "Gallery", path: `${basePath}/gallery`, permission: "can_manage_gallery" },
+        { icon: BookOpen, label: "Subjects Registry", path: `${basePath}/subjects`, permission: "can_manage_subjects" },
+        { icon: Calendar, label: "Training Timetable", path: `${basePath}/timetable`, permission: "can_manage_timetable" },
+        { icon: Upload, label: "Learning Materials", path: `${basePath}/materials`, permission: "can_manage_materials" },
+        { icon: Image, label: "Visual Gallery", path: `${basePath}/gallery`, permission: "can_manage_gallery" },
       ].filter(item => shouldShowItem(item.permission)),
-      separator: true
+      separator: false
     },
-    // Assessments & Results Group
     {
       type: "group",
       key: "assessments",
       icon: ClipboardCheck,
       label: "Assessments & Results",
       items: [
-        { icon: ClipboardCheck, label: "Assessments", path: `${basePath}/assessments`, permission: "can_manage_assessments" },
-        { icon: FileText, label: "Results", path: `${basePath}/results`, permission: "can_manage_results" },
+        { icon: ClipboardCheck, label: "Training Assessments", path: `${basePath}/assessments`, permission: "can_manage_assessments" },
+        { icon: FileText, label: "Performance Results", path: `${basePath}/results`, permission: "can_manage_results" },
       ].filter(item => shouldShowItem(item.permission)),
       separator: false
     },
-    // Reports & Analytics Group
     {
       type: "group",
       key: "reports",
-      icon: Box,
+      icon: FileBarChart,
       label: "Reports & Analytics",
       items: [
-        { icon: Box, label: "Reports", path: `${basePath}/reports`, permission: "can_manage_reports" },
-    ...(isSuperAdmin ? [
-      { icon: FileBarChart, label: "System Report", path: `${basePath}/system-report`, permission: null },
-    ] : [
-      { icon: FileBarChart, label: "Course Report", path: `${basePath}/system-report`, permission: "can_manage_reports" },
-    ]),
+        { icon: Box, label: "Operational Reports", path: `${basePath}/reports`, permission: "can_manage_reports" },
+        ...(isSuperAdmin ? [
+          { icon: FileBarChart, label: "System Analytics", path: `${basePath}/system-report`, permission: null },
+        ] : [
+          { icon: FileBarChart, label: "Course Overview", path: `${basePath}/system-report`, permission: "can_manage_reports" },
+        ]),
       ].filter(item => shouldShowItem(item.permission)),
-      separator: true
+      separator: false
     },
-    // Communication (single item)
     {
       type: "single",
       item: { icon: MessageSquare, label: "Chat Board", path: `${basePath}/chat`, permission: "can_manage_chat" },
       separator: false
     },
-    // Administration Group
     {
       type: "group",
       key: "administration",
       icon: Settings,
       label: "Administration",
       items: [
-    { icon: Users, label: "Manage Users", path: `${basePath}/users`, permission: "can_manage_users" },
+        { icon: Users, label: "Manage Users", path: `${basePath}/users`, permission: "can_manage_users" },
         { icon: User, label: "User Profiles", path: `${basePath}/user-profiles`, permission: "can_manage_users" },
-        { icon: AlertTriangle, label: "Discipline Issues", path: `${basePath}/discipline-issues`, permission: null },
+        { icon: AlertTriangle, label: "Discipline Registry", path: `${basePath}/discipline-issues`, permission: null },
         ...(isSuperAdmin ? [
-          { icon: PlusCircle, label: "Create Course & Admin", path: `${basePath}/setup`, permission: null },
-          { icon: Tag, label: "Course Metadata", path: `${basePath}/course-metadata`, permission: null },
-          { icon: Settings, label: "Admin Settings", path: `${basePath}/settings`, permission: null },
+          { icon: PlusCircle, label: "System Provisioning", path: `${basePath}/setup`, permission: null },
+          { icon: Tag, label: "Course Parameters", path: `${basePath}/course-metadata`, permission: null },
+          { icon: Settings, label: "Security Settings", path: `${basePath}/settings`, permission: null },
         ] : []),
       ].filter(item => shouldShowItem(item.permission)),
-      separator: true
+      separator: false
     },
-    // Medical Group
     {
       type: "group",
       key: "medical",
       icon: Stethoscope,
       label: "Medical",
       items: [
-    { icon: Activity, label: "Doctor Activities", path: `${basePath}/activities`, permission: "can_manage_activities" },
-    { icon: Stethoscope, label: "Doctor Dashboard View", path: `${basePath}/doctor-view`, permission: "can_view_doctor_dashboard" },
+        { icon: Activity, label: "Medical Activities", path: `${basePath}/activities`, permission: "can_manage_activities" },
+        { icon: Shield, label: "Medical Dashboard", path: `${basePath}/doctor-view`, permission: "can_view_doctor_dashboard" },
       ].filter(item => shouldShowItem(item.permission)),
       separator: false
     },
@@ -406,15 +403,14 @@ const AdminDashboard = () => {
     <div className="flex h-screen bg-background">
       {/* Sidebar */}
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-50 transition-transform duration-300 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-        } w-64 bg-gradient-to-b from-[hsl(120,40%,25%)] via-[hsl(45,35%,30%)] to-[hsl(30,40%,22%)]`}
+        className={`fixed lg:static inset-y-0 left-0 z-50 transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+          } w-72 bg-[#1a2e1a] border-r border-white/5 shadow-2xl`}
       >
         <div className="relative h-full flex flex-col">
           {/* Logo Section */}
-          <div className="p-6 border-b border-[hsl(45,30%,35%)]/40 bg-gradient-to-r from-[hsl(120,45%,30%)]/30 via-[hsl(45,40%,35%)]/20 to-transparent">
-            <div className="flex items-center gap-3">
-              <RotatingLogo className="w-12 h-12" />
+          <div className="p-8 border-b border-white/5 bg-gradient-to-b from-white/5 to-transparent">
+            <div className="flex flex-col items-center text-center gap-4">
+              <RotatingLogo className="w-24 h-24" animate={false} />
               <div>
                 <h2 className="text-white font-bold text-xl">TAWA</h2>
                 <p className="text-white/80 text-sm">
@@ -429,67 +425,75 @@ const AdminDashboard = () => {
             {menuGroups.map((group, idx) => {
               // Add separator before group if needed
               const showSeparator = group.separator && idx > 0;
-              
-              if (group.type === "single") {
-                return (
-                  <div key={idx}>
-                    {showSeparator && (
-                      <div className="my-2 mx-2 border-t border-white/10"></div>
-                    )}
-              <Link
-                      to={group.item.path}
-                      className="flex items-center gap-3 px-4 py-2.5 text-white hover:bg-gradient-to-r hover:from-[hsl(120,45%,32%)] hover:via-[hsl(45,40%,38%)] hover:to-[hsl(30,45%,28%)] hover:shadow-lg rounded-lg transition-all group border border-transparent hover:border-[hsl(45,50%,45%)]/40 active:scale-[0.98]"
-                    >
-                      <group.item.icon className="w-5 h-5 group-hover:scale-110 transition-transform flex-shrink-0" />
-                      <span className="font-medium text-sm">{group.item.label}</span>
-                    </Link>
-                  </div>
-                );
-              }
 
-              // Collapsible group
-              const isOpen = openDropdowns[group.key];
-              const GroupIcon = group.icon;
-              
               return (
-                <div key={idx}>
-                  {showSeparator && (
-                    <div className="my-2 mx-2 border-t border-white/10"></div>
+                <div key={idx} className="space-y-1">
+                  {/* Section Header */}
+                  {group.section && (
+                    <div className="pt-4 pb-1 px-4">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/40">
+                        {group.section}
+                      </p>
+                    </div>
                   )}
-                  <Collapsible
-                    open={isOpen}
-                    onOpenChange={() => toggleDropdown(group.key)}
-                  >
-                    <CollapsibleTrigger className="w-full">
-                      <div className="flex items-center justify-between gap-3 px-4 py-2.5 text-white hover:bg-gradient-to-r hover:from-[hsl(120,45%,32%)] hover:via-[hsl(45,40%,38%)] hover:to-[hsl(30,45%,28%)] hover:shadow-lg rounded-lg transition-all group border border-transparent hover:border-[hsl(45,50%,45%)]/40 active:scale-[0.98]">
-                        <div className="flex items-center gap-3">
-                          <GroupIcon className="w-5 h-5 group-hover:scale-110 transition-transform flex-shrink-0" />
-                          <span className="font-medium text-sm">{group.label}</span>
-                        </div>
-                        <div className="flex items-center">
-                          {isOpen ? (
-                            <ChevronDown className="w-4 h-4 transition-transform duration-200 text-white/70" />
-                          ) : (
-                            <ChevronRight className="w-4 h-4 transition-transform duration-200 text-white/70" />
-                          )}
-                        </div>
-                      </div>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="overflow-hidden transition-all duration-200 ease-in-out">
-                      <div className="ml-6 mt-1.5 space-y-1 border-l-2 border-white/15 pl-4 py-1">
-                        {group.items.map((item, itemIdx) => (
-                          <Link
-                            key={itemIdx}
-                to={item.path}
-                            className="flex items-center gap-2.5 px-3 py-1.5 text-white/80 hover:text-white hover:bg-white/10 rounded-md transition-all group border border-transparent hover:border-white/15 active:scale-[0.98]"
-              >
-                            <item.icon className="w-4 h-4 group-hover:scale-110 transition-transform flex-shrink-0" />
-                            <span className="font-medium text-xs">{item.label}</span>
-              </Link>
-            ))}
-                      </div>
-                    </CollapsibleContent>
-                  </Collapsible>
+
+                  {group.type === "single" ? (
+                    <div>
+                      {showSeparator && (
+                        <div className="my-2 mx-2 border-t border-white/10"></div>
+                      )}
+                      <Link
+                        to={group.item.path}
+                        className="flex items-center gap-3 px-4 py-2.5 text-white hover:bg-white/10 rounded-lg transition-all group border border-transparent active:scale-[0.98]"
+                      >
+                        <group.item.icon className="w-4 h-4 text-white/70 group-hover:text-white transition-colors flex-shrink-0" />
+                        <span className="font-medium text-sm">{group.item.label}</span>
+                      </Link>
+                    </div>
+                  ) : (
+                    <div
+                      onMouseEnter={() => setOpenDropdowns(prev => ({ ...prev, [group.key]: true }))}
+                      onMouseLeave={() => setOpenDropdowns(prev => ({ ...prev, [group.key]: false }))}
+                    >
+                      {showSeparator && (
+                        <div className="my-2 mx-2 border-t border-white/10"></div>
+                      )}
+                      <Collapsible
+                        open={openDropdowns[group.key]}
+                        onOpenChange={(isOpen) => setOpenDropdowns(prev => ({ ...prev, [group.key]: isOpen }))}
+                      >
+                        <CollapsibleTrigger className="w-full">
+                          <div className="flex items-center justify-between gap-3 px-4 py-2.5 text-white hover:bg-white/10 rounded-lg transition-all group border border-transparent active:scale-[0.98]">
+                            <div className="flex items-center gap-3">
+                              <group.icon className="w-4 h-4 text-white/70 group-hover:text-white transition-colors flex-shrink-0" />
+                              <span className="font-medium text-sm">{group.label}</span>
+                            </div>
+                            <div className="flex items-center">
+                              {openDropdowns[group.key] ? (
+                                <ChevronDown className="w-3 h-3 text-white/50" />
+                              ) : (
+                                <ChevronRight className="w-3 h-3 text-white/50" />
+                              )}
+                            </div>
+                          </div>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="overflow-hidden transition-all duration-200">
+                          <div className="ml-4 mt-1 space-y-1 border-l border-white/10 pl-4">
+                            {group.items.map((item, itemIdx) => (
+                              <Link
+                                key={itemIdx}
+                                to={item.path}
+                                className="flex items-center gap-2.5 px-3 py-2 text-white/60 hover:text-white hover:bg-white/5 rounded-md transition-all active:scale-[0.98]"
+                              >
+                                <item.icon className="w-3.5 h-3.5" />
+                                <span className="font-medium text-[13px]">{item.label}</span>
+                              </Link>
+                            ))}
+                          </div>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -501,13 +505,13 @@ const AdminDashboard = () => {
               <p className="font-semibold text-base">{user?.name}</p>
               <p className="text-sm text-white/80">{user?.user_id || user?.email}</p>
             </div>
-            {user?.course_name && (
+            {selectedCourse && (
               <div className="mb-3 px-3 py-2 bg-white/10 rounded-lg border border-white/20">
                 <div className="flex items-center gap-2 text-white">
                   <BookOpen className="w-4 h-4 text-white/80" />
                   <div>
-                    <p className="text-xs text-white/70">Course</p>
-                    <p className="text-sm font-semibold">{user.course_name}</p>
+                    <p className="text-xs text-white/70">Active Course</p>
+                    <p className="text-sm font-semibold">{selectedCourse.name}</p>
                   </div>
                 </div>
               </div>
@@ -538,29 +542,61 @@ const AdminDashboard = () => {
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto">
         {/* Header */}
-        <header className="bg-gradient-to-r from-[hsl(120,40%,25%)] via-[hsl(45,35%,30%)] to-[hsl(30,40%,22%)] text-white border-b border-[hsl(120,30%,20%)]/50 p-6 sticky top-0 z-10 shadow-lg">
+        <header className="bg-card border-b p-6 sticky top-0 z-10 shadow-sm backdrop-blur-md bg-white/80 dark:bg-slate-900/80">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-white">
-                {isSuperAdmin ? "TAWA Super Admin Dashboard" : "TAWA Admin Dashboard"}
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">
+                {isSuperAdmin ? "Super Admin Command" : "Command Dashboard"}
               </h1>
-              <div className="flex items-center gap-4 mt-2">
-                <p className="text-white text-sm font-medium">
-                  {isSuperAdmin 
-                    ? "Full system access - Manage all courses, users, and system configuration"
-                    : "Manage courses, users, and system configuration"}
+              <div className="flex items-center gap-3 mt-1">
+                <p className="text-muted-foreground text-sm font-medium">
+                  {isSuperAdmin
+                    ? "Strategic Enterprise Oversight"
+                    : "Operational Course Oversight"}
                 </p>
-                {user?.course_name && (
-                  <div className="flex items-center gap-2 px-3 py-1.5 bg-white/20 rounded-lg border border-white/30 backdrop-blur-sm">
-                    <BookOpen className="w-4 h-4 text-white" />
-                    <span className="text-white font-semibold text-sm">{user.course_name}</span>
+                {selectedCourse && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 rounded-lg border border-primary/20">
+                    <BookOpen className="w-4 h-4 text-primary" />
+                    <span className="text-primary font-bold text-sm">{selectedCourse.name}</span>
                   </div>
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <NotificationBar />
-              <ThemeToggle />
+            <div className="flex items-center gap-4">
+              {(user?.enrolled_courses && user.enrolled_courses.length > 1) || isSuperAdmin ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-muted-foreground hidden sm:inline">Switch Course:</span>
+                  <Select
+                    value={selectedCourse?.id?.toString() || "all"}
+                    onValueChange={(value) => {
+                      if (value === "all") {
+                        setSelectedCourse(null);
+                      } else {
+                        const course = user?.enrolled_courses?.find(c => c.id.toString() === value);
+                        if (course) {
+                          setSelectedCourse(course as any);
+                        }
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="w-[180px] h-9 text-xs">
+                      <SelectValue placeholder="Select Course" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {isSuperAdmin && <SelectItem value="all">All Courses</SelectItem>}
+                      {user?.enrolled_courses?.map((course) => (
+                        <SelectItem key={course.id} value={course.id.toString()}>
+                          {course.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
+              <div className="flex items-center gap-2">
+                <NotificationBar />
+                <ThemeToggle />
+              </div>
             </div>
           </div>
         </header>
@@ -595,8 +631,8 @@ const AdminDashboard = () => {
               </>
             )}
             {(isSuperAdmin || hasPermission("can_manage_reports")) && (
-              <Route 
-                path="/system-report" 
+              <Route
+                path="/system-report"
                 element={
                   <Suspense fallback={
                     <div className="flex items-center justify-center h-64">
@@ -608,49 +644,49 @@ const AdminDashboard = () => {
                   }>
                     <SystemReport />
                   </Suspense>
-                } 
+                }
               />
             )}
             {/* Protected routes - only accessible if admin has permission or is super admin */}
             {hasPermission("can_manage_users") && (
               <>
-            <Route path="/users" element={<RegisterUsers />} />
-            <Route path="/trainees" element={<RegisterUsers />} />
-            <Route path="/user-profiles" element={<UserProfiles />} />
-            <Route path="/users/:userId/profile" element={<UserProfile />} />
+                <Route path="/users" element={<RegisterUsers />} />
+                <Route path="/trainees" element={<RegisterUsers />} />
+                <Route path="/user-profiles" element={<UserProfiles />} />
+                <Route path="/users/:userId/profile" element={<UserProfile />} />
               </>
             )}
             {/* Discipline Issues - accessible by admin and super admin */}
             <Route path="/discipline-issues" element={<DisciplineIssues />} />
             {hasPermission("can_manage_subjects") && (
-            <Route path="/subjects" element={<Subjects />} />
+              <Route path="/subjects" element={<Subjects />} />
             )}
             {hasPermission("can_manage_materials") && (
-            <Route path="/materials" element={<Materials />} />
+              <Route path="/materials" element={<Materials />} />
             )}
             {hasPermission("can_manage_gallery") && (
-            <Route path="/gallery" element={<Gallery />} />
+              <Route path="/gallery" element={<Gallery />} />
             )}
             {hasPermission("can_manage_timetable") && (
-            <Route path="/timetable" element={<Timetable />} />
+              <Route path="/timetable" element={<Timetable />} />
             )}
             {(isSuperAdmin || hasPermission("can_manage_reports")) && (
-            <Route path="/reports" element={<Reports />} />
+              <Route path="/reports" element={<Reports />} />
             )}
             {hasPermission("can_manage_chat") && (
-            <Route path="/chat" element={<ChatBoard />} />
+              <Route path="/chat" element={<ChatBoard />} />
             )}
             {hasPermission("can_manage_assessments") && (
-            <Route path="/assessments" element={<Assessments />} />
+              <Route path="/assessments" element={<Assessments />} />
             )}
             {hasPermission("can_manage_results") && (
-            <Route path="/results" element={<Results />} />
+              <Route path="/results" element={<Results />} />
             )}
             {hasPermission("can_manage_activities") && (
-            <Route path="/activities" element={<DoctorActivities />} />
+              <Route path="/activities" element={<DoctorActivities />} />
             )}
             {hasPermission("can_view_doctor_dashboard") && (
-            <Route path="/doctor-view" element={<AdminDoctorView />} />
+              <Route path="/doctor-view" element={<AdminDoctorView />} />
             )}
             {/* Redirect unauthorized access attempts */}
             <Route path="*" element={
@@ -764,12 +800,12 @@ const DashboardHome = ({ stats, statsLoading, user, isSuperAdmin, basePath }: { 
       console.error("Failed to load chart data:", error);
     }
   };
-  
+
   const navigate = useNavigate();
   const { toast } = useToast();
-  
+
   const handleQuickAction = (action: string) => {
-    switch(action) {
+    switch (action) {
       case "Manage Users":
         navigate("/admin/users");
         break;
@@ -789,7 +825,7 @@ const DashboardHome = ({ stats, statsLoading, user, isSuperAdmin, basePath }: { 
         break;
     }
   };
-  
+
   return (
     <div className="space-y-8">
       {/* Welcome Section */}
@@ -798,10 +834,10 @@ const DashboardHome = ({ stats, statsLoading, user, isSuperAdmin, basePath }: { 
           <div>
             <h2 className="text-4xl font-bold text-primary mb-2">
               Welcome back, {user?.name?.split(' ')[0]}! 👋
-        </h2>
+            </h2>
             <p className="text-muted-foreground text-lg">
               {isSuperAdmin ? "Full system overview and management" : "Manage your training programs with precision"}
-          </p>
+            </p>
           </div>
           {user?.course_name && (
             <div className="flex items-center gap-2 px-4 py-2 bg-primary/20 rounded-xl border border-primary/30 backdrop-blur-sm">
@@ -827,7 +863,7 @@ const DashboardHome = ({ stats, statsLoading, user, isSuperAdmin, basePath }: { 
           <AnimatedCounter end={stats.materials} label="Materials" icon={FileText} delay={300} />
         </div>
       </div>
-      
+
       {statsLoading && (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="w-4 h-4 animate-spin" />
@@ -884,25 +920,25 @@ const DashboardHome = ({ stats, statsLoading, user, isSuperAdmin, basePath }: { 
               <AreaChart data={chartData.usersOverTime}>
                 <defs>
                   <linearGradient id="colorUsers" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis dataKey="name" stroke="#6b7280" />
                 <YAxis stroke="#6b7280" />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
                     border: '1px solid #e5e7eb',
                     borderRadius: '8px'
-                  }} 
+                  }}
                 />
-                <Area 
-                  type="monotone" 
-                  dataKey="users" 
-                  stroke="#3b82f6" 
-                  fillOpacity={1} 
+                <Area
+                  type="monotone"
+                  dataKey="users"
+                  stroke="#3b82f6"
+                  fillOpacity={1}
                   fill="url(#colorUsers)"
                   animationDuration={1500}
                 />
@@ -927,16 +963,16 @@ const DashboardHome = ({ stats, statsLoading, user, isSuperAdmin, basePath }: { 
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis dataKey="name" stroke="#6b7280" />
                 <YAxis stroke="#6b7280" />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
                     border: '1px solid #e5e7eb',
                     borderRadius: '8px'
-                  }} 
+                  }}
                 />
-                <Bar 
-                  dataKey="value" 
-                  fill="#8b5cf6" 
+                <Bar
+                  dataKey="value"
+                  fill="#8b5cf6"
                   radius={[8, 8, 0, 0]}
                   animationDuration={1500}
                 >
@@ -965,23 +1001,23 @@ const DashboardHome = ({ stats, statsLoading, user, isSuperAdmin, basePath }: { 
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis dataKey="name" stroke="#6b7280" />
                 <YAxis stroke="#6b7280" />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
                     border: '1px solid #e5e7eb',
                     borderRadius: '8px'
-                  }} 
+                  }}
                 />
                 <Legend />
-                <Bar 
-                  dataKey="trainees" 
-                  fill="#10b981" 
+                <Bar
+                  dataKey="trainees"
+                  fill="#10b981"
                   radius={[8, 8, 0, 0]}
                   animationDuration={1500}
                 />
-                <Bar 
-                  dataKey="instructors" 
-                  fill="#3b82f6" 
+                <Bar
+                  dataKey="instructors"
+                  fill="#3b82f6"
                   radius={[8, 8, 0, 0]}
                   animationDuration={1500}
                 />
@@ -1076,21 +1112,21 @@ const DashboardHome = ({ stats, statsLoading, user, isSuperAdmin, basePath }: { 
               </p>
             ) : (
               [].map((course, idx) => (
-              <div key={idx} className="flex items-center gap-4">
-                <div className={`${course.color} w-3 h-3 rounded-full`} />
-                <div className="flex-1">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="font-medium">{course.name}</span>
-                    <span className="text-sm text-muted-foreground">{course.count} Active</span>
-                  </div>
-                  <div className="h-2 bg-muted rounded-full overflow-hidden">
-                    <div 
-                      className={`${course.color} h-full transition-all duration-1000`}
-                      style={{ width: `${(course.count / 10) * 100}%` }}
-                    />
+                <div key={idx} className="flex items-center gap-4">
+                  <div className={`${course.color} w-3 h-3 rounded-full`} />
+                  <div className="flex-1">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="font-medium">{course.name}</span>
+                      <span className="text-sm text-muted-foreground">{course.count} Active</span>
+                    </div>
+                    <div className="h-2 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className={`${course.color} h-full transition-all duration-1000`}
+                        style={{ width: `${(course.count / 10) * 100}%` }}
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
               ))
             )}
           </div>
@@ -1109,13 +1145,13 @@ const DashboardHome = ({ stats, statsLoading, user, isSuperAdmin, basePath }: { 
               </p>
             ) : (
               [].map((stat, idx) => (
-              <div key={idx} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                <span className="text-sm font-medium">{stat.metric}</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-lg font-bold text-primary">{stat.value}</span>
-                  <Award className="w-4 h-4 text-accent" />
+                <div key={idx} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                  <span className="text-sm font-medium">{stat.metric}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg font-bold text-primary">{stat.value}</span>
+                    <Award className="w-4 h-4 text-accent" />
+                  </div>
                 </div>
-              </div>
               ))
             )}
           </div>

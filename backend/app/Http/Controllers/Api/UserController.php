@@ -27,7 +27,7 @@ class UserController extends Controller
     private function generateUserId($courseId, $role): string
     {
         $course = Course::find($courseId);
-        
+
         // Get course code (2 uppercase letters max)
         $courseCode = 'TA';
         if ($course) {
@@ -38,28 +38,30 @@ class UserController extends Controller
                 $courseCode = strtoupper(substr(preg_replace('/[^A-Za-z]/', '', $course->name), 0, 2));
             }
         }
-        
+
         // Get date in MMDD format (month and day only)
         $date = date('md'); // e.g., 1129 for Nov 29
-        
+
         // Get role prefix (single letter)
-        $rolePrefix = match($role) {
+        $rolePrefix = match ($role) {
             'trainee' => 'T',
             'instructor' => 'I',
             'doctor' => 'D',
             'admin' => 'A',
             default => 'U',
         };
-        
+
         // Find the next sequence number for this course, role, and date
-        $todayUsers = User::where('course_id', $courseId)
+        $todayUsers = User::whereHas('enrolledCourses', function ($q) use ($courseId) {
+            $q->where('courses.id', $courseId);
+        })
             ->where('role', $role)
             ->whereDate('created_at', today())
             ->count();
-        
+
         $sequence = $todayUsers + 1;
         $userId = $courseCode . $date . $rolePrefix . str_pad($sequence, 2, '0', STR_PAD_LEFT);
-        
+
         // Ensure uniqueness
         $counter = 1;
         while (User::where('user_id', $userId)->exists()) {
@@ -67,7 +69,7 @@ class UserController extends Controller
             $userId = $courseCode . $date . $rolePrefix . str_pad($sequence, 2, '0', STR_PAD_LEFT);
             $counter++;
         }
-        
+
         return $userId;
     }
 
@@ -75,50 +77,73 @@ class UserController extends Controller
     {
         try {
             $currentUser = $request->user();
-            $courseId = CourseHelper::getCurrentCourseId($currentUser);
-            
+            $activeCourseId = CourseHelper::getCurrentCourseId($currentUser);
+            $filterCourseId = $request->query('course_id');
+
             $users = User::query();
 
-            // Super admins can see all users, regular admins see only their course
-            if ($currentUser && $currentUser->role === 'super_admin') {
-                // Super admin sees all users - no course filter
-            } elseif ($courseId) {
-                $users->where('course_id', $courseId);
+            // Priority 1: Explicit course_id filter
+            if ($filterCourseId) {
+                $users->whereHas('enrolledCourses', function ($q) use ($filterCourseId) {
+                    $q->where('courses.id', $filterCourseId);
+                });
             }
+            // Priority 2: Active course context from header/user profile
+            elseif ($activeCourseId) {
+                $users->whereHas('enrolledCourses', function ($q) use ($activeCourseId) {
+                    $q->where('courses.id', $activeCourseId);
+                });
+            }
+            // Priority 3: Fallback for non-super admins (must be restricted to their courses)
+            elseif ($currentUser && $currentUser->role !== 'super_admin') {
+                $users->whereHas('enrolledCourses', function ($q) use ($currentUser) {
+                    $q->whereIn('courses.id', $currentUser->enrolledCourses->pluck('id'));
+                });
+            }
+            // Super admins see all users if no course filter is applied
 
             if ($request->has('role')) {
                 $users->where('role', $request->role);
             }
-            
-            if ($request->has('course_id')) {
-                $users->where('course_id', $request->course_id);
-            }
-            
+
             if ($request->has('search')) {
                 $search = $request->search;
-                $users->where(function($query) use ($search) {
+                $users->where(function ($query) use ($search) {
                     $query->where('name', 'like', "%{$search}%")
-                          ->orWhere('email', 'like', "%{$search}%")
-                          ->orWhere('user_id', 'like', "%{$search}%")
-                          ->orWhere('phone', 'like', "%{$search}%")
-                          ->orWhere('department', 'like', "%{$search}%");
+                        ->orWhere('email', 'like', "%{$search}%")
+                        ->orWhere('user_id', 'like', "%{$search}%")
+                        ->orWhere('phone', 'like', "%{$search}%")
+                        ->orWhere('department', 'like', "%{$search}%");
                 });
             }
 
-            $usersList = $users->with(['subjects', 'course'])->get()->map(function ($user) {
+            $contextCourseId = $filterCourseId ?: $activeCourseId;
+
+            $usersList = $users->with(['subjects', 'enrolledCourses'])->get()->map(function ($user) use ($contextCourseId) {
                 $subjects = [];
                 try {
-                    if ($user->relationLoaded('subjects') && $user->subjects) {
+                    // Check if subject relation is available and loaded
+                    if ($user->subjects) {
                         $subjects = $user->subjects->toArray();
                     }
                 } catch (\Exception $e) {
                     \Log::warning('Error accessing subjects for user ' . $user->id . ': ' . $e->getMessage());
                     $subjects = [];
                 }
-                
+
+                // For the return data, show the context course or fallback to first enrollment
+                $displayCourse = null;
+                if ($contextCourseId) {
+                    $displayCourse = $user->enrolledCourses->firstWhere('id', $contextCourseId);
+                }
+
+                if (!$displayCourse && $user->enrolledCourses->count() > 0) {
+                    $displayCourse = $user->enrolledCourses->first();
+                }
+
                 return [
                     'id' => $user->id,
-                    'user_id' => $user->user_id ?? $user->id, // Use user_id if available, fallback to id
+                    'user_id' => $user->user_id ?? $user->id,
                     'name' => $user->name ?? '',
                     'email' => $user->email ?? '',
                     'role' => $user->role ?? '',
@@ -126,8 +151,11 @@ class UserController extends Controller
                     'department' => $user->department ?? null,
                     'avatar' => $user->avatar ?? null,
                     'passport_picture' => $user->passport_picture ?? null,
-                    'course_id' => $user->course_id ?? null,
-                    'course_name' => $user->course->name ?? null,
+                    'course_id' => $displayCourse->id ?? null,
+                    'course_name' => $displayCourse->name ?? null,
+                    'all_courses' => $user->enrolledCourses->map(function ($c) {
+                        return ['id' => $c->id, 'name' => $c->name, 'code' => $c->code];
+                    }),
                     'subjects' => $subjects,
                 ];
             });
@@ -143,7 +171,7 @@ class UserController extends Controller
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
             ]);
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to load users: ' . $e->getMessage(),
@@ -168,13 +196,13 @@ class UserController extends Controller
             // Validate password based on role
             $role = $validated['role'];
             $passwordRules = $role === 'trainee' ? 'nullable|string|min:8' : 'required|string|min:8';
-            
+
             $passwordValidated = $request->validate([
                 'password' => $passwordRules,
             ]);
 
             $currentUser = $request->user();
-            
+
             // Super admins can specify course_id, regular admins use their assigned course
             $courseId = null;
             if ($currentUser->role === 'super_admin' && $request->has('course_id')) {
@@ -189,17 +217,57 @@ class UserController extends Controller
             } else {
                 $courseId = CourseHelper::getCurrentCourseId($currentUser);
             }
-            
+
             if (!$courseId) {
                 return response()->json([
                     'success' => false,
                     'message' => 'You must be assigned to a course or specify a course ID to register users.',
                 ], 422);
             }
-            
+
+            // Check if user with this email already exists
+            $existingUser = User::where('email', $validated['email'])->first();
+
+            if ($existingUser) {
+                // Update role if it's different
+                if ($existingUser->role !== $validated['role']) {
+                    $existingUser->role = $validated['role'];
+                    $existingUser->save();
+                }
+
+                // Update basic info if provided and different
+                if (isset($validated['phone']) && $existingUser->phone !== $validated['phone']) {
+                    $existingUser->phone = $validated['phone'];
+                    $existingUser->save();
+                }
+
+                if (isset($validated['department']) && $existingUser->department !== $validated['department']) {
+                    $existingUser->department = $validated['department'];
+                    $existingUser->save();
+                }
+
+                // Check if already enrolled in this specific course
+                if ($existingUser->enrolledCourses()->where('courses.id', $courseId)->exists()) {
+                    return response()->json([
+                        'success' => true,
+                        'message' => 'User (email: ' . $validated['email'] . ') was already registered. Unified profile updated to role: ' . $validated['role'],
+                        'data' => $existingUser->load(['subjects', 'enrolledCourses']),
+                    ], 200);
+                }
+
+                // If not enrolled, enroll them
+                $existingUser->enrolledCourses()->attach($courseId);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Existing user identified and enrolled in course. Unified profile updated to role: ' . $validated['role'],
+                    'data' => $existingUser->load(['subjects', 'enrolledCourses']),
+                ], 200);
+            }
+
             // Generate user ID based on course and date
             $userId = $this->generateUserId($courseId, $validated['role']);
-            
+
             $userData = [
                 'name' => $validated['name'],
                 'email' => $validated['email'],
@@ -207,7 +275,6 @@ class UserController extends Controller
                 'role' => $validated['role'],
                 'phone' => $validated['phone'] ?? null,
                 'department' => $validated['department'] ?? null,
-                'course_id' => $courseId, // Assign to current course
             ];
 
             // Only set password if provided (not required for trainees)
@@ -225,6 +292,9 @@ class UserController extends Controller
             }
 
             $user = User::create($userData);
+
+            // Enroll in course
+            $user->enrolledCourses()->attach($courseId);
 
             // Handle supportive documents upload for doctors
             if ($request->has('supportive_documents') && is_array($request->supportive_documents)) {
@@ -249,7 +319,7 @@ class UserController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'User created successfully',
+                'message' => 'User created successfully and enrolled in course.',
                 'data' => $user->load('subjects'),
             ], 201);
         } catch (\Illuminate\Validation\ValidationException $e) {
@@ -263,7 +333,7 @@ class UserController extends Controller
                 'trace' => $e->getTraceAsString(),
                 'request' => $request->all(),
             ]);
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to create user: ' . $e->getMessage(),
@@ -277,24 +347,24 @@ class UserController extends Controller
             // Check if user belongs to the same course
             $currentUser = $request->user();
             $courseId = CourseHelper::getCurrentCourseId($currentUser);
-            
+
             if ($courseId && $user->course_id !== $courseId) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Access denied. User does not belong to your course.',
                 ], 403);
             }
-            
+
             return response()->json([
                 'success' => true,
-                'data' => $user->load('subjects'),
+                'data' => $user->load(['subjects', 'enrolledCourses']),
             ]);
         } catch (\Exception $e) {
             \Log::error('Error loading user: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
                 'user_id' => $user->id,
             ]);
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to load user: ' . $e->getMessage(),
@@ -308,17 +378,17 @@ class UserController extends Controller
             // Check if user belongs to the same course
             $currentUser = $request->user();
             $courseId = CourseHelper::getCurrentCourseId($currentUser);
-            
+
             if ($courseId && $user->course_id !== $courseId) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Access denied. User does not belong to your course.',
                 ], 403);
             }
-            
+
             // Pre-process JSON strings from FormData before validation
             $requestData = $request->all();
-            
+
             // Handle JSON strings for skills (when sent via FormData)
             if ($request->has('skills') && is_string($request->input('skills'))) {
                 $skillsJson = json_decode($request->input('skills'), true);
@@ -326,7 +396,7 @@ class UserController extends Controller
                     $requestData['skills'] = $skillsJson;
                 }
             }
-            
+
             // Handle JSON strings for relatives (when sent via FormData)
             if ($request->has('relatives')) {
                 if (is_string($request->input('relatives'))) {
@@ -334,7 +404,7 @@ class UserController extends Controller
                     $relativesJson = json_decode($request->input('relatives'), true);
                     if (json_last_error() === JSON_ERROR_NONE && is_array($relativesJson)) {
                         // Filter out empty relatives
-                        $filteredRelatives = array_filter($relativesJson, function($rel) {
+                        $filteredRelatives = array_filter($relativesJson, function ($rel) {
                             return !empty($rel['name']) && trim($rel['name']) !== '';
                         });
                         $requestData['relatives'] = !empty($filteredRelatives) ? array_values($filteredRelatives) : [];
@@ -343,7 +413,7 @@ class UserController extends Controller
                     }
                 } elseif (is_array($request->input('relatives'))) {
                     // Handle direct array from JSON request
-                    $filteredRelatives = array_filter($request->input('relatives'), function($rel) {
+                    $filteredRelatives = array_filter($request->input('relatives'), function ($rel) {
                         return !empty($rel['name']) && trim($rel['name']) !== '';
                     });
                     $requestData['relatives'] = !empty($filteredRelatives) ? array_values($filteredRelatives) : [];
@@ -354,10 +424,10 @@ class UserController extends Controller
                 // If relatives is not provided, set to empty array
                 $requestData['relatives'] = [];
             }
-            
+
             // Merge the processed data back into the request
             $request->merge($requestData);
-            
+
             $validated = $request->validate([
                 'name' => 'sometimes|string|max:255',
                 'email' => 'sometimes|string|email|max:255',
@@ -400,7 +470,7 @@ class UserController extends Controller
             if (isset($validated['password'])) {
                 $validated['password'] = Hash::make($validated['password']);
             }
-            
+
             // Set relatives to null if empty array (to clear existing relatives)
             if (isset($validated['relatives']) && empty($validated['relatives'])) {
                 $validated['relatives'] = null;
@@ -412,7 +482,7 @@ class UserController extends Controller
                 if ($user->passport_picture && Storage::disk('public')->exists($user->passport_picture)) {
                     Storage::disk('public')->delete($user->passport_picture);
                 }
-                
+
                 $file = $request->file('passport_picture');
                 $fileName = time() . '_' . $file->getClientOriginalName();
                 $filePath = $file->storeAs('passport_pictures', $fileName, 'public');
@@ -432,7 +502,7 @@ class UserController extends Controller
                         }
                     }
                 }
-                
+
                 $documentPaths = [];
                 foreach ($request->supportive_documents as $document) {
                     if ($document && $document->isValid()) {
@@ -477,7 +547,7 @@ class UserController extends Controller
                 'request' => $request->all(),
                 'user_id' => $user->id,
             ]);
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to update user: ' . $e->getMessage(),
@@ -490,14 +560,14 @@ class UserController extends Controller
         // Check if user belongs to the same course
         $currentUser = $request->user();
         $courseId = CourseHelper::getCurrentCourseId($currentUser);
-        
+
         if ($courseId && $user->course_id !== $courseId) {
             return response()->json([
                 'success' => false,
                 'message' => 'Access denied. User does not belong to your course.',
             ], 403);
         }
-        
+
         $user->delete();
 
         return response()->json([
@@ -511,7 +581,7 @@ class UserController extends Controller
         // Check if user belongs to the same course
         $currentUser = $request->user();
         $courseId = CourseHelper::getCurrentCourseId($currentUser);
-        
+
         if ($courseId && $user->course_id !== $courseId) {
             return response()->json([
                 'success' => false,
@@ -527,7 +597,7 @@ class UserController extends Controller
         }
 
         $filePath = storage_path('app/public/' . $user->passport_picture);
-        
+
         if (!file_exists($filePath)) {
             return response()->json([
                 'success' => false,
@@ -537,7 +607,7 @@ class UserController extends Controller
 
         // Extract filename from path
         $fileName = basename($user->passport_picture);
-        
+
         return response()->download($filePath, $fileName, [
             'Content-Type' => 'image/jpeg',
         ]);
@@ -547,7 +617,7 @@ class UserController extends Controller
     {
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
-        
+
         // Set headers - Required fields first, then optional extended fields
         $headers = [
             'Name', // Required
@@ -594,9 +664,9 @@ class UserController extends Controller
             'Relative 3 Relationship',
             'Relative 3 Phone',
         ];
-        
+
         $sheet->fromArray($headers, null, 'A1');
-        
+
         // Style header row
         $headerStyle = [
             'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
@@ -610,21 +680,56 @@ class UserController extends Controller
         $lastColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(count($headers));
         $sheet->getStyle('A1:' . $lastColumn . '1')->applyFromArray($headerStyle);
         $sheet->getRowDimension(1)->setRowHeight(30);
-        
+
         // Set column widths
         $columnWidths = [
-            'A' => 25, 'B' => 30, 'C' => 20, 'D' => 25, 'E' => 15, 'F' => 30,
-            'G' => 18, 'H' => 20, 'I' => 20, 'J' => 20, 'K' => 15, 'L' => 20,
-            'M' => 20, 'N' => 20, 'O' => 20, 'P' => 20, 'Q' => 20, 'R' => 25,
-            'S' => 30, 'T' => 25, 'U' => 25, 'V' => 20, 'W' => 25, 'X' => 20,
-            'Y' => 25, 'Z' => 20, 'AA' => 20, 'AB' => 20, 'AC' => 20, 'AD' => 20,
-            'AE' => 20, 'AF' => 20, 'AG' => 20, 'AH' => 20, 'AI' => 20, 'AJ' => 20,
-            'AK' => 20, 'AL' => 20, 'AM' => 20, 'AN' => 20, 'AO' => 20, 'AP' => 20,
+            'A' => 25,
+            'B' => 30,
+            'C' => 20,
+            'D' => 25,
+            'E' => 15,
+            'F' => 30,
+            'G' => 18,
+            'H' => 20,
+            'I' => 20,
+            'J' => 20,
+            'K' => 15,
+            'L' => 20,
+            'M' => 20,
+            'N' => 20,
+            'O' => 20,
+            'P' => 20,
+            'Q' => 20,
+            'R' => 25,
+            'S' => 30,
+            'T' => 25,
+            'U' => 25,
+            'V' => 20,
+            'W' => 25,
+            'X' => 20,
+            'Y' => 25,
+            'Z' => 20,
+            'AA' => 20,
+            'AB' => 20,
+            'AC' => 20,
+            'AD' => 20,
+            'AE' => 20,
+            'AF' => 20,
+            'AG' => 20,
+            'AH' => 20,
+            'AI' => 20,
+            'AJ' => 20,
+            'AK' => 20,
+            'AL' => 20,
+            'AM' => 20,
+            'AN' => 20,
+            'AO' => 20,
+            'AP' => 20,
         ];
         foreach ($columnWidths as $col => $width) {
             $sheet->getColumnDimension($col)->setWidth($width);
         }
-        
+
         // Add example row with empty values for optional fields
         $exampleRow = array_fill(0, count($headers), '');
         $exampleRow[0] = 'John Doe';
@@ -633,21 +738,21 @@ class UserController extends Controller
         $exampleRow[3] = 'Field Operations';
         $exampleRow[4] = 'trainee';
         // Leave other fields empty as examples
-        
+
         $sheet->fromArray([$exampleRow], null, 'A2');
-        
+
         // Add note
         $sheet->setCellValue('A4', 'Note: Role must be one of: trainee, instructor, doctor, admin. All fields except Name, Email, and Role are optional.');
         $sheet->mergeCells('A4:' . $lastColumn . '4');
         $sheet->getStyle('A4')->getFont()->setItalic(true);
         $sheet->getStyle('A4')->getFont()->getColor()->setRGB('666666');
-        
+
         $writer = new Xlsx($spreadsheet);
-        
+
         $filename = 'user_import_template.xlsx';
         $tempFile = tempnam(sys_get_temp_dir(), $filename);
         $writer->save($tempFile);
-        
+
         return response()->download($tempFile, $filename, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ])->deleteFileAfterSend(true);
@@ -663,7 +768,7 @@ class UserController extends Controller
 
             $currentUser = $request->user();
             $courseId = $validated['course_id'] ?? CourseHelper::getCurrentCourseId($currentUser);
-            
+
             // Super admin can specify course_id, regular admin uses their course
             if (!$courseId) {
                 return response()->json([
@@ -676,16 +781,16 @@ class UserController extends Controller
             $spreadsheet = IOFactory::load($file->getRealPath());
             $worksheet = $spreadsheet->getActiveSheet();
             $rows = $worksheet->toArray();
-            
+
             $importedUsers = 0;
             $errors = [];
             $totalRows = count($rows);
-            
+
             \Log::info('Excel import started', [
                 'total_rows' => $totalRows,
                 'course_id' => $courseId,
             ]);
-            
+
             // Find the first data row (skip header row which typically has "Name" in first column)
             $startRow = 1; // Default: start from row 2 (index 1) to skip header
             for ($i = 0; $i < min(3, $totalRows); $i++) {
@@ -696,13 +801,13 @@ class UserController extends Controller
                     break;
                 }
             }
-            
+
             \Log::info('Excel import - starting from row', ['start_row_index' => $startRow]);
-            
+
             // Process rows starting from the detected start row
             for ($i = $startRow; $i < $totalRows; $i++) {
                 $row = $rows[$i];
-                
+
                 // Skip completely empty rows
                 $rowHasData = false;
                 foreach ($row as $cell) {
@@ -711,26 +816,26 @@ class UserController extends Controller
                         break;
                     }
                 }
-                
+
                 if (!$rowHasData) {
                     continue;
                 }
-                
+
                 // Skip rows where name or email is missing (required fields)
                 $name = trim($row[0] ?? '');
                 $email = trim($row[1] ?? '');
-                
+
                 if (empty($name) || empty($email)) {
                     $errors[] = "Row " . ($i + 1) . ": Missing required fields (Name or Email).";
                     continue;
                 }
-                
+
                 // Required fields
                 $phone = trim($row[2] ?? '');
                 $department = trim($row[3] ?? '');
                 $role = strtolower(trim($row[4] ?? 'trainee'));
                 $userId = trim($row[5] ?? '');
-                
+
                 // Extended fields (all optional)
                 $dateOfBirth = !empty($row[6]) ? trim($row[6]) : null;
                 $gender = !empty($row[7]) ? strtolower(trim($row[7])) : null;
@@ -758,7 +863,7 @@ class UserController extends Controller
                 $fatherPhone = !empty($row[29]) ? trim($row[29]) : null;
                 $motherName = !empty($row[30]) ? trim($row[30]) : null;
                 $motherPhone = !empty($row[31]) ? trim($row[31]) : null;
-                $numberOfChildren = !empty($row[32]) ? (int)trim($row[32]) : null;
+                $numberOfChildren = !empty($row[32]) ? (int) trim($row[32]) : null;
                 $relative1Name = !empty($row[33]) ? trim($row[33]) : null;
                 $relative1Relationship = !empty($row[34]) ? trim($row[34]) : null;
                 $relative1Phone = !empty($row[35]) ? trim($row[35]) : null;
@@ -768,31 +873,31 @@ class UserController extends Controller
                 $relative3Name = !empty($row[39]) ? trim($row[39]) : null;
                 $relative3Relationship = !empty($row[40]) ? trim($row[40]) : null;
                 $relative3Phone = !empty($row[41]) ? trim($row[41]) : null;
-                
+
                 // Validate role
                 if (!in_array($role, ['trainee', 'instructor', 'doctor', 'admin'])) {
                     $errors[] = "Row " . ($i + 1) . ": Invalid role '{$role}'. Must be trainee, instructor, doctor, or admin.";
                     continue;
                 }
-                
+
                 // Validate email
                 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
                     $errors[] = "Row " . ($i + 1) . ": Invalid email '{$email}'.";
                     continue;
                 }
-                
+
                 // Validate gender if provided
                 if ($gender && !in_array($gender, ['male', 'female', 'other'])) {
                     $errors[] = "Row " . ($i + 1) . ": Invalid gender '{$gender}'. Must be male, female, or other.";
                     continue;
                 }
-                
+
                 // Validate marital status if provided
                 if ($maritalStatus && !in_array($maritalStatus, ['single', 'married', 'divorced', 'widowed'])) {
                     $errors[] = "Row " . ($i + 1) . ": Invalid marital status '{$maritalStatus}'. Must be single, married, divorced, or widowed.";
                     continue;
                 }
-                
+
                 // Validate date of birth if provided
                 $dateOfBirthFormatted = null;
                 if ($dateOfBirth) {
@@ -803,7 +908,7 @@ class UserController extends Controller
                         continue;
                     }
                 }
-                
+
                 // Generate user_id if not provided
                 if (empty($userId)) {
                     $userId = $this->generateUserId($courseId, $role);
@@ -814,7 +919,38 @@ class UserController extends Controller
                         continue;
                     }
                 }
-                
+                // Check if user with this email already exists
+                $existingUser = User::where('email', $email)->first();
+
+                if ($existingUser) {
+                    // Update role if it's different
+                    if ($existingUser->role !== $role) {
+                        $existingUser->role = $role;
+                        $existingUser->save();
+                    }
+
+                    // Update basic info if provided and different
+                    if ($phone && $existingUser->phone !== $phone) {
+                        $existingUser->phone = $phone;
+                        $existingUser->save();
+                    }
+
+                    if ($department && $existingUser->department !== $department) {
+                        $existingUser->department = $department;
+                        $existingUser->save();
+                    }
+
+                    // Check if already enrolled
+                    if (!$existingUser->enrolledCourses()->where('courses.id', $courseId)->exists()) {
+                        $existingUser->enrolledCourses()->attach($courseId);
+                        $importedUsers++;
+                    } else {
+                        // Still count as imported if we updated their info/role
+                        $importedUsers++;
+                    }
+                    continue;
+                }
+
                 // Build skills array
                 $skills = [];
                 if ($skill1) {
@@ -823,7 +959,7 @@ class UserController extends Controller
                 if ($skill2) {
                     $skills[] = ['skill' => $skill2, 'university' => $skill2University ?: null];
                 }
-                
+
                 // Build relatives array
                 $relatives = [];
                 if ($relative1Name) {
@@ -847,7 +983,7 @@ class UserController extends Controller
                         'phone' => $relative3Phone ?: null,
                     ];
                 }
-                
+
                 // Create user
                 $userData = [
                     'name' => $name,
@@ -856,7 +992,6 @@ class UserController extends Controller
                     'role' => $role,
                     'phone' => $phone ?: null,
                     'department' => $department ?: null,
-                    'course_id' => $courseId,
                     // Extended fields
                     'date_of_birth' => $dateOfBirthFormatted,
                     'gender' => $gender,
@@ -884,7 +1019,7 @@ class UserController extends Controller
                     'number_of_children' => $numberOfChildren,
                     'relatives' => !empty($relatives) ? $relatives : null,
                 ];
-                
+
                 // Set password based on role
                 if ($role === 'trainee') {
                     $userData['password'] = Hash::make(uniqid('trainee_', true));
@@ -892,8 +1027,9 @@ class UserController extends Controller
                     // For other roles, set a temporary password that needs to be changed
                     $userData['password'] = Hash::make('temp_password_' . uniqid());
                 }
-                
-                User::create($userData);
+
+                $user = User::create($userData);
+                $user->enrolledCourses()->attach($courseId);
                 $importedUsers++;
             }
 
@@ -932,7 +1068,7 @@ class UserController extends Controller
             \Log::error('Error importing users from Excel: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
             ]);
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to import users: ' . $e->getMessage(),

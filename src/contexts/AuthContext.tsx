@@ -15,6 +15,7 @@ interface User {
   department?: string;
   course_id?: number | null;
   course_name?: string | null;
+  enrolled_courses?: { id: number; name: string; code: string }[];
 }
 
 interface AuthContextType {
@@ -54,6 +55,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               department: user.department,
               course_id: user.course_id,
               course_name: user.course_name || null,
+              enrolled_courses: user.enrolled_courses || [],
             });
             setIsLoading(false);
             return; // Exit early if successful
@@ -62,8 +64,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           console.error('Error checking auth:', error);
           // Only remove token if it's a 401/403 (unauthorized) or if error message indicates invalid token
           // Don't logout on network errors or temporary server issues
-          if (error.response?.status === 401 || error.response?.status === 403 || 
-              error.message?.includes('Unauthorized') || error.message?.includes('Invalid token')) {
+          if (error.response?.status === 401 || error.response?.status === 403 ||
+            error.message?.includes('Unauthorized') || error.message?.includes('Invalid token')) {
             console.log('Token is invalid, removing from storage');
             removeAuthToken();
           } else {
@@ -77,29 +79,52 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     checkAuth();
   }, []);
 
-  const login = useCallback(async (userId: string, password: string): Promise<{ success: boolean; user?: User }> => {
+  const login = useCallback(async (email: string, password: string, courseId?: number): Promise<{
+    success: boolean;
+    requires_course_selection?: boolean;
+    courses?: any[];
+    user?: User
+  }> => {
     try {
-      const response = await authApi.login(userId, password);
-      
-      // Handle response structure - backend returns { success: true, data: { user: ..., token: ... } }
-      // apiRequest returns data.data || data, so response should be { user: ..., token: ... }
-      if (!response || !response.token || !response.user) {
+      const response = await authApi.login(email, password, courseId);
+
+      if (response.requires_course_selection) {
+        return {
+          success: true,
+          requires_course_selection: true,
+          courses: response.data.courses,
+          user: response.data.user
+        };
+      }
+
+      // Handle normal login response
+      const loginData = response.data || response;
+      if (!loginData || !loginData.token || !loginData.user) {
         console.error('Invalid login response:', response);
         return { success: false };
       }
-      
-      setAuthToken(response.token);
-      const userData = {
-        id: response.user.id.toString(),
-        user_id: response.user.user_id || response.user.id.toString(),
-        name: response.user.name,
-        email: response.user.email,
-        role: response.user.role,
-        avatar: response.user.avatar,
-        phone: response.user.phone,
-        department: response.user.department,
-        course_id: response.user.course_id,
-        course_name: response.user.course_name || null,
+
+      setAuthToken(loginData.token);
+
+      // Store course ID if present
+      if (loginData.user.course_id) {
+        localStorage.setItem('active_course_id', loginData.user.course_id.toString());
+      } else {
+        localStorage.removeItem('active_course_id');
+      }
+
+      const userData: User = {
+        id: loginData.user.id.toString(),
+        user_id: loginData.user.user_id || loginData.user.id.toString(),
+        name: loginData.user.name,
+        email: loginData.user.email,
+        role: loginData.user.role,
+        avatar: loginData.user.avatar,
+        phone: loginData.user.phone,
+        department: loginData.user.department,
+        course_id: loginData.user.course_id,
+        course_name: loginData.user.course_name || null,
+        enrolled_courses: loginData.user.enrolled_courses || [],
       };
       setUser(userData);
       return { success: true, user: userData };
@@ -109,39 +134,42 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  const superAdminLogin = useCallback(async (userId: string, password: string): Promise<{ success: boolean; user?: User }> => {
+  const superAdminLogin = useCallback(async (email: string, password: string): Promise<{ success: boolean; user?: User }> => {
     try {
-      const response = await authApi.superAdminLogin(userId, password);
-      
-      // Handle response structure - backend returns { success: true, data: { user: ..., token: ... } }
-      if (!response || !response.token || !response.user) {
+      const response = await authApi.superAdminLogin(email, password);
+
+      const loginData = response.data || response;
+      if (!loginData || !loginData.token || !loginData.user) {
         console.error('Invalid login response:', response);
         return { success: false };
       }
-      
+
       // Verify it's actually a super admin
-      if (response.user.role !== 'super_admin') {
+      if (loginData.user.role !== 'super_admin') {
         throw new Error('This login page is only for Super Administrators.');
       }
-      
-      setAuthToken(response.token);
-      const userData = {
-        id: response.user.id.toString(),
-        user_id: response.user.user_id || response.user.id.toString(),
-        name: response.user.name,
-        email: response.user.email,
-        role: response.user.role,
-        avatar: response.user.avatar,
-        phone: response.user.phone,
-        department: response.user.department,
-        course_id: response.user.course_id,
-        course_name: response.user.course_name || null,
+
+      setAuthToken(loginData.token);
+      localStorage.removeItem('active_course_id'); // Super admin has no active course
+
+      const userData: User = {
+        id: loginData.user.id.toString(),
+        user_id: loginData.user.user_id || loginData.user.id.toString(),
+        name: loginData.user.name,
+        email: loginData.user.email,
+        role: loginData.user.role,
+        avatar: loginData.user.avatar,
+        phone: loginData.user.phone,
+        department: loginData.user.department,
+        course_id: null,
+        course_name: null,
+        enrolled_courses: loginData.user.enrolled_courses || [],
       };
       setUser(userData);
       return { success: true, user: userData };
     } catch (error: any) {
       console.error('Super admin login error:', error);
-      throw error; // Re-throw to let the component handle the error message
+      throw error;
     }
   }, []);
 
@@ -174,6 +202,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             department: user.department,
             course_id: user.course_id,
             course_name: user.course_name || null,
+            enrolled_courses: user.enrolled_courses || [],
           });
         }
       } catch (error) {

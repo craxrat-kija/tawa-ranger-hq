@@ -8,21 +8,26 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { RotatingLogo } from "@/components/RotatingLogo";
 import { Lock, Mail, User, Copy, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const Login = () => {
-  const [userId, setUserId] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showCredentials, setShowCredentials] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
-  const { login, user } = useAuth();
+  const [showCourseSelection, setShowCourseSelection] = useState(false);
+  const [availableCourses, setAvailableCourses] = useState<any[]>([]);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  const { login } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Updated credentials to use user_id or email for backward compatibility
+  // Updated credentials to use email
   const credentials = [
-    { role: "Admin", user_id: "admin@tawa.go.tz", password: "tawa2024", color: "bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400" },
-    { role: "Instructor", user_id: "instructor@tawa.go.tz", password: "tawa2024", color: "bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400" },
-    { role: "Doctor", user_id: "doctor@tawa.go.tz", password: "tawa2024", color: "bg-green-500/10 border-green-500/20 text-green-600 dark:text-green-400" },
+    { role: "Admin", email: "admin@tawa.go.tz", password: "tawa2024", color: "bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400" },
+    { role: "Instructor", email: "instructor@tawa.go.tz", password: "tawa2024", color: "bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400" },
+    { role: "Doctor", email: "doctor@tawa.go.tz", password: "tawa2024", color: "bg-green-500/10 border-green-500/20 text-green-600 dark:text-green-400" },
   ];
 
   const copyToClipboard = (text: string, index: number) => {
@@ -35,61 +40,47 @@ const Login = () => {
     setTimeout(() => setCopiedIndex(null), 2000);
   };
 
-  const fillCredentials = (credUserId: string, credPassword: string) => {
-    setUserId(credUserId);
+  const fillCredentials = (credEmail: string, credPassword: string) => {
+    setEmail(credEmail);
     setPassword(credPassword);
     setShowCredentials(false);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  const handleLogin = async (selectedCourseId?: number) => {
     try {
-      const result = await login(userId, password);
-      
-      if (result.success && result.user) {
-        toast({
-          title: "Login Successful",
-          description: `Welcome to TAWA Training Portal`,
-        });
-        
-        // Navigate based on actual user role from login response
-        const userRole = result.user.role;
-        
-        // Trainees cannot login to the system
-        if (userRole === "trainee") {
-          toast({
-            title: "Access Denied",
-            description: "Trainees do not have access to the login system. Please contact your administrator.",
-            variant: "destructive",
-          });
+      setIsLoggingIn(true);
+      const result = await login(email, password, selectedCourseId);
+
+      if (result.success) {
+        if (result.requires_course_selection) {
+          setAvailableCourses(result.courses || []);
+          setShowCourseSelection(true);
+          setIsLoggingIn(false);
           return;
         }
-        
-        // Prevent super_admin from logging in through regular login
-        if (userRole === "super_admin") {
+
+        if (result.user) {
           toast({
-            title: "Access Denied",
-            description: "Super admins must use the dedicated super admin login page.",
-            variant: "destructive",
+            title: "Login Successful",
+            description: `Welcome to TAWA Training Portal`,
           });
-          return;
-        }
-        
-        // Navigate based on role
-        if (userRole === "admin") {
-          navigate("/admin");
-        } else if (userRole === "doctor") {
-          navigate("/doctor");
-        } else if (userRole === "instructor") {
-          navigate("/instructor");
-        } else {
-          navigate("/admin"); // Default fallback
+
+          const userRole = result.user.role;
+
+          if (userRole === "admin") {
+            navigate("/admin");
+          } else if (userRole === "doctor") {
+            navigate("/doctor");
+          } else if (userRole === "instructor") {
+            navigate("/instructor");
+          } else {
+            navigate("/admin");
+          }
         }
       } else {
         toast({
           title: "Login Failed",
-          description: "Invalid credentials. Please check your User ID and password.",
+          description: "Invalid credentials. Please check your email and password.",
           variant: "destructive",
         });
       }
@@ -100,7 +91,14 @@ const Login = () => {
         description: error.message || "An error occurred during login. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsLoggingIn(false);
     }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    handleLogin();
   };
 
   return (
@@ -117,7 +115,7 @@ const Login = () => {
         <div className="bg-card/95 backdrop-blur-xl rounded-2xl shadow-2xl p-8 border border-accent/20 animate-slide-up">
           {/* Logo */}
           <div className="flex justify-center mb-6">
-            <RotatingLogo className="w-32 h-32" />
+            <RotatingLogo className="w-56 h-56" />
           </div>
 
           {/* Title */}
@@ -129,21 +127,21 @@ const Login = () => {
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="user_id" className="flex items-center gap-2">
-                <User className="w-4 h-4" />
-                User ID / Username
+              <Label htmlFor="email" className="flex items-center gap-2">
+                <Mail className="w-4 h-4" />
+                Email Address
               </Label>
               <Input
-                id="user_id"
-                type="text"
-                value={userId}
-                onChange={(e) => setUserId(e.target.value)}
-                placeholder="e.g., TAWA-20251118-AD001 or admin@tawa.go.tz"
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="e.g., admin@tawa.go.tz"
                 required
                 className="border-primary/30"
               />
               <p className="text-xs text-muted-foreground">
-                Enter your User ID (e.g., TAWA-20251118-IN001) or email for existing users
+                Enter your registered email address
               </p>
             </div>
 
@@ -163,11 +161,12 @@ const Login = () => {
               />
             </div>
 
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
+              disabled={isLoggingIn}
               className="w-full bg-gradient-military hover:opacity-90 text-white font-semibold py-6 text-lg shadow-lg"
             >
-              Access System
+              {isLoggingIn ? "Authenticating..." : "Access System"}
             </Button>
           </form>
 
@@ -196,7 +195,7 @@ const Login = () => {
                     <div
                       key={index}
                       className={`p-3 rounded-lg border cursor-pointer hover:opacity-80 transition-opacity ${cred.color}`}
-                      onClick={() => fillCredentials(cred.user_id, cred.password)}
+                      onClick={() => fillCredentials(cred.email, cred.password)}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex-1">
@@ -205,12 +204,12 @@ const Login = () => {
                           </div>
                           <div className="text-xs space-y-1">
                             <div className="flex items-center gap-2">
-                              <User className="w-3 h-3" />
-                              <span className="font-mono">{cred.user_id}</span>
+                              <Mail className="w-3 h-3" />
+                              <span className="font-mono">{cred.email}</span>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  copyToClipboard(cred.user_id, index * 2);
+                                  copyToClipboard(cred.email, index * 2);
                                 }}
                                 className="ml-auto p-1 hover:bg-white/20 rounded"
                               >
@@ -247,11 +246,55 @@ const Login = () => {
               </Card>
             )}
           </div>
+
+          {/* Course Selection Dialog */}
+          <Dialog open={showCourseSelection} onOpenChange={setShowCourseSelection}>
+            <DialogContent className="sm:max-w-md bg-card/95 backdrop-blur-xl border-accent/20">
+              <DialogHeader>
+                <DialogTitle className="text-2xl font-bold text-primary">Select Course</DialogTitle>
+                <DialogDescription>
+                  You are enrolled in multiple courses. Please select the one you want to access.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                {availableCourses.map((course) => (
+                  <Button
+                    key={course.id}
+                    variant="outline"
+                    className="justify-start h-auto py-4 px-6 border-primary/20 hover:bg-primary/5 hover:border-primary/40 transition-all group"
+                    onClick={() => {
+                      setShowCourseSelection(false);
+                      handleLogin(course.id);
+                    }}
+                  >
+                    <div className="flex flex-col items-start gap-1">
+                      <span className="font-bold text-lg group-hover:text-primary">{course.name}</span>
+                      <span className="text-sm text-neutral-500 font-mono">{course.code}</span>
+                    </div>
+                  </Button>
+                ))}
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Link to Super Admin Login */}
+          <div className="mt-6 text-center">
+            <Button
+              type="button"
+              variant="ghost"
+              className="text-sm text-muted-foreground hover:text-foreground"
+              onClick={() => navigate("/super-admin")}
+            >
+              Super Admin Login →
+            </Button>
+          </div>
         </div>
 
         {/* Bottom Badge */}
-        <div className="mt-4 text-center text-white/80 text-sm">
-          <p>Secured by TAWA IT Department</p>
+        <div className="mt-4 text-center">
+          <p className="text-sm font-medium text-foreground/70 bg-card/50 backdrop-blur-sm px-4 py-2 rounded-lg border border-border/50 inline-block">
+            Secured by TAWA IT Department
+          </p>
         </div>
       </div>
     </div>

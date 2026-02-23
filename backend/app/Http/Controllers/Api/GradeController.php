@@ -14,13 +14,24 @@ class GradeController extends Controller
     {
         $currentUser = $request->user();
         $courseId = CourseHelper::getCurrentCourseId($currentUser);
-        
+
         $grades = Grade::with(['assessment.subject', 'assessment.instructor', 'trainee', 'grader']);
 
-        // Always filter by current user's course_id for isolation
-        if ($courseId) {
-            $grades->where('course_id', $courseId);
+        // For history viewing: if search is for a specific trainee and requester is admin/doctor/super_admin, 
+        // OR if the trainee is requesting their own history, allow seeing grades from other courses.
+        $isHistoryRequest = $request->has('trainee_id') && (
+            in_array($currentUser->role, ['admin', 'super_admin', 'doctor']) ||
+            ($currentUser->role === 'trainee' && $currentUser->id == $request->trainee_id)
+        );
+
+        if (!$isHistoryRequest) {
+            if ($courseId) {
+                $grades->where('course_id', $courseId);
+            } elseif ($request->has('course_id')) {
+                $grades->where('course_id', $request->course_id);
+            }
         } elseif ($request->has('course_id')) {
+            // Even in history requests, allow explicit course filtering
             $grades->where('course_id', $request->course_id);
         }
 
@@ -55,7 +66,7 @@ class GradeController extends Controller
 
         // Verify assessment exists and get max_score
         $assessment = Assessment::findOrFail($validated['assessment_id']);
-        
+
         // Verify score doesn't exceed max_score
         if ($validated['score'] > $assessment->max_score) {
             return response()->json([
@@ -93,14 +104,14 @@ class GradeController extends Controller
         // Check if grade belongs to the same course
         $currentUser = $request->user();
         $courseId = CourseHelper::getCurrentCourseId($currentUser);
-        
+
         if ($courseId && $grade->course_id !== $courseId) {
             return response()->json([
                 'success' => false,
                 'message' => 'Access denied. Grade does not belong to your course.',
             ], 403);
         }
-        
+
         return response()->json([
             'success' => true,
             'data' => $grade->load(['assessment.subject', 'trainee', 'grader']),
@@ -112,18 +123,18 @@ class GradeController extends Controller
         // Check if grade belongs to the same course
         $currentUser = $request->user();
         $courseId = CourseHelper::getCurrentCourseId($currentUser);
-        
+
         if ($courseId && $grade->course_id !== $courseId) {
             return response()->json([
                 'success' => false,
                 'message' => 'Access denied. Grade does not belong to your course.',
             ], 403);
         }
-        
+
         // Only allow instructor who created the assessment, grader, or admin to update
         $assessment = $grade->assessment;
-        $canEdit = $assessment->instructor_id === $request->user()->id 
-            || $grade->graded_by === $request->user()->id 
+        $canEdit = $assessment->instructor_id === $request->user()->id
+            || $grade->graded_by === $request->user()->id
             || $request->user()->role === 'admin' || $request->user()->role === 'super_admin';
 
         if (!$canEdit) {
@@ -160,18 +171,18 @@ class GradeController extends Controller
         // Check if grade belongs to the same course
         $currentUser = $request->user();
         $courseId = CourseHelper::getCurrentCourseId($currentUser);
-        
+
         if ($courseId && $grade->course_id !== $courseId) {
             return response()->json([
                 'success' => false,
                 'message' => 'Access denied. Grade does not belong to your course.',
             ], 403);
         }
-        
+
         // Only allow instructor who created the assessment, grader, or admin to delete
         $assessment = $grade->assessment;
-        $canDelete = $assessment->instructor_id === $request->user()->id 
-            || $grade->graded_by === $request->user()->id 
+        $canDelete = $assessment->instructor_id === $request->user()->id
+            || $grade->graded_by === $request->user()->id
             || $request->user()->role === 'admin' || $request->user()->role === 'super_admin';
 
         if (!$canDelete) {

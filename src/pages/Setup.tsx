@@ -28,7 +28,7 @@ const Setup = () => {
     adminPassword: "",
     adminPhone: "",
     adminDepartment: "",
-    
+
     // Course Information
     courseCode: "",
     courseName: "",
@@ -135,7 +135,7 @@ const Setup = () => {
       if (!response.ok) {
         throw new Error(data.message || 'Setup failed');
       }
-      
+
       toast({
         title: "Course & Admin Created",
         description: data.message || "Your admin account and course have been created successfully. You can now login.",
@@ -163,7 +163,7 @@ const Setup = () => {
         <Card className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm">
           <CardHeader className="text-center space-y-4">
             <div className="flex justify-center">
-              <RotatingLogo className="w-20 h-20" />
+              <RotatingLogo className="w-24 h-24" />
             </div>
             <div>
               <CardTitle className="text-3xl font-bold">Create New Course & Admin</CardTitle>
@@ -172,7 +172,7 @@ const Setup = () => {
               </CardDescription>
             </div>
           </CardHeader>
-          
+
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-8">
               {/* Admin Information Section */}
@@ -181,7 +181,7 @@ const Setup = () => {
                   <User className="w-5 h-5 text-primary" />
                   <h3 className="text-xl font-semibold">Administrator Information</h3>
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="adminName">Full Name *</Label>
@@ -193,7 +193,7 @@ const Setup = () => {
                       required
                     />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="adminEmail">Email Address *</Label>
                     <Input
@@ -205,7 +205,7 @@ const Setup = () => {
                       required
                     />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="adminPassword">Password *</Label>
                     <Input
@@ -218,7 +218,7 @@ const Setup = () => {
                       minLength={8}
                     />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="adminPhone">Phone Number</Label>
                     <Input
@@ -228,7 +228,7 @@ const Setup = () => {
                       placeholder="+255 XXX XXX XXX"
                     />
                   </div>
-                  
+
                   <div className="space-y-2 md:col-span-2">
                     <Label htmlFor="adminDepartment">Department</Label>
                     <Input
@@ -247,7 +247,7 @@ const Setup = () => {
                   <BookOpen className="w-5 h-5 text-primary" />
                   <h3 className="text-xl font-semibold">Initial Course Configuration</h3>
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="courseCode">Course Code *</Label>
@@ -269,15 +269,15 @@ const Setup = () => {
                         </SelectContent>
                       </Select>
                     ) : (
-                    <Input
-                      id="courseCode"
-                      value={formData.courseCode}
-                      onChange={(e) => setFormData({ ...formData, courseCode: e.target.value.toUpperCase() })}
-                      placeholder="e.g., TC2024, SC2024"
-                      required
-                      pattern="[A-Z0-9]+"
-                      title="Course code should contain only uppercase letters and numbers"
-                    />
+                      <Input
+                        id="courseCode"
+                        value={formData.courseCode}
+                        onChange={(e) => setFormData({ ...formData, courseCode: e.target.value.toUpperCase() })}
+                        placeholder="e.g., TC2024, SC2024"
+                        required
+                        pattern="[A-Z0-9]+"
+                        title="Course code should contain only uppercase letters and numbers"
+                      />
                     )}
                     <p className="text-xs text-muted-foreground">
                       {courseCodes.length === 0 && !loadingMetadata
@@ -285,7 +285,7 @@ const Setup = () => {
                         : "Unique identifier for this course (e.g., TC2024)"}
                     </p>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="courseName">Course Name *</Label>
                     {courseNames.length > 0 ? (
@@ -306,13 +306,13 @@ const Setup = () => {
                         </SelectContent>
                       </Select>
                     ) : (
-                    <Input
-                      id="courseName"
-                      value={formData.courseName}
-                      onChange={(e) => setFormData({ ...formData, courseName: e.target.value })}
-                      placeholder="e.g., Transformation Course"
-                      required
-                    />
+                      <Input
+                        id="courseName"
+                        value={formData.courseName}
+                        onChange={(e) => setFormData({ ...formData, courseName: e.target.value })}
+                        placeholder="e.g., Transformation Course"
+                        required
+                      />
                     )}
                     {courseNames.length === 0 && !loadingMetadata && (
                       <p className="text-xs text-muted-foreground">
@@ -320,7 +320,7 @@ const Setup = () => {
                       </p>
                     )}
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="courseType">Course Type *</Label>
                     {courseTypes.length > 0 ? (
@@ -341,13 +341,13 @@ const Setup = () => {
                         </SelectContent>
                       </Select>
                     ) : (
-                    <Input
-                      id="courseType"
-                      value={formData.courseType}
-                      onChange={(e) => setFormData({ ...formData, courseType: e.target.value })}
-                      placeholder="e.g., Transformation, Special, Recruit, Refresher"
-                      required
-                    />
+                      <Input
+                        id="courseType"
+                        value={formData.courseType}
+                        onChange={(e) => setFormData({ ...formData, courseType: e.target.value })}
+                        placeholder="e.g., Transformation, Special, Recruit, Refresher"
+                        required
+                      />
                     )}
                     {courseTypes.length === 0 && !loadingMetadata && (
                       <p className="text-xs text-muted-foreground">
@@ -355,7 +355,7 @@ const Setup = () => {
                       </p>
                     )}
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="courseDuration">Duration *</Label>
                     <Input
@@ -366,7 +366,7 @@ const Setup = () => {
                       required
                     />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="startDate">Start Date *</Label>
                     <Input
@@ -377,7 +377,7 @@ const Setup = () => {
                       required
                     />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="location">Location *</Label>
                     {locations.length > 0 ? (
@@ -398,13 +398,13 @@ const Setup = () => {
                         </SelectContent>
                       </Select>
                     ) : (
-                    <Input
-                      id="location"
-                      value={formData.location}
-                      onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                      placeholder="e.g., Fort Ikoma, Arusha"
-                      required
-                    />
+                      <Input
+                        id="location"
+                        value={formData.location}
+                        onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                        placeholder="e.g., Fort Ikoma, Arusha"
+                        required
+                      />
                     )}
                     {locations.length === 0 && !loadingMetadata && (
                       <p className="text-xs text-muted-foreground">
@@ -412,7 +412,7 @@ const Setup = () => {
                       </p>
                     )}
                   </div>
-                  
+
                   <div className="space-y-2 md:col-span-2">
                     <Label htmlFor="courseDescription">Course Description</Label>
                     <Textarea
@@ -432,11 +432,11 @@ const Setup = () => {
                   <User className="w-5 h-5 text-primary" />
                   <h3 className="text-xl font-semibold">Import Users (Optional)</h3>
                 </div>
-                
+
                 <div className="space-y-4">
                   <div className="p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
                     <p className="text-sm text-blue-800 dark:text-blue-200 mb-3">
-                      <strong>Bulk User Import:</strong> Download the Excel template, fill it with user information, then upload it here. 
+                      <strong>Bulk User Import:</strong> Download the Excel template, fill it with user information, then upload it here.
                       Users will be created without passwords and can be edited later by the admin.
                     </p>
                     <Button
@@ -449,7 +449,7 @@ const Setup = () => {
                       Download Excel Template
                     </Button>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="excelFile">Upload Filled Excel File</Label>
                     <Input

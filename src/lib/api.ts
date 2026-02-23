@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 
 // Get auth token from localStorage
 const getToken = (): string | null => {
@@ -15,21 +15,36 @@ export const removeAuthToken = (): void => {
   localStorage.removeItem('auth_token');
 };
 
-// API request helper
-export const apiRequest = async <T>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<T> => {
+// Get common headers including auth and course context
+export const getHeaders = (extraHeaders: HeadersInit = {}): HeadersInit => {
   const token = getToken();
+  const courseId = localStorage.getItem('active_course_id');
+
   const headers: HeadersInit = {
-    'Content-Type': 'application/json',
     'Accept': 'application/json',
-    ...options.headers,
+    ...extraHeaders,
   };
 
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
+
+  if (courseId) {
+    headers['X-Course-Id'] = courseId;
+  }
+
+  return headers;
+};
+
+// API request helper
+export const apiRequest = async <T>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<T> => {
+  const headers = getHeaders({
+    'Content-Type': 'application/json',
+    ...options.headers,
+  });
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     ...options,
@@ -41,7 +56,7 @@ export const apiRequest = async <T>(
     let errorData: any = null;
     try {
       errorData = await response.json();
-    // Handle Laravel validation errors
+      // Handle Laravel validation errors
       if (errorData.errors) {
         const errorMessages = Object.values(errorData.errors).flat().join(', ');
         errorMessage = errorMessages || errorData.message || errorMessage;
@@ -66,7 +81,7 @@ export const apiRequest = async <T>(
 
 // Auth API
 export const authApi = {
-  login: async (userId: string, password: string) => {
+  login: async (email: string, password: string, courseId?: number) => {
     try {
       const response = await fetch(`${API_BASE_URL}/login`, {
         method: 'POST',
@@ -74,21 +89,17 @@ export const authApi = {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: JSON.stringify({ user_id: userId, password }),
+        body: JSON.stringify({ email, password, course_id: courseId }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        const error = new Error(data.message || data.errors?.user_id?.[0] || data.errors?.email?.[0] || `HTTP error! status: ${response.status}`);
+        const error = new Error(data.message || data.errors?.email?.[0] || `HTTP error! status: ${response.status}`);
         (error as any).response = { data };
         throw error;
       }
 
-      // Handle both wrapped and unwrapped responses
-      if (data.data) {
-        return data.data;
-      }
       return data;
     } catch (error: any) {
       if (error.response) {
@@ -98,7 +109,7 @@ export const authApi = {
     }
   },
 
-  superAdminLogin: async (userId: string, password: string) => {
+  superAdminLogin: async (email: string, password: string) => {
     try {
       const response = await fetch(`${API_BASE_URL}/super-admin/login`, {
         method: 'POST',
@@ -106,21 +117,17 @@ export const authApi = {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: JSON.stringify({ user_id: userId, password }),
+        body: JSON.stringify({ email, password }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        const error = new Error(data.message || data.errors?.user_id?.[0] || data.errors?.email?.[0] || `HTTP error! status: ${response.status}`);
+        const error = new Error(data.message || data.errors?.email?.[0] || `HTTP error! status: ${response.status}`);
         (error as any).response = { data };
         throw error;
       }
 
-      // Handle both wrapped and unwrapped responses
-      if (data.data) {
-        return data.data;
-      }
       return data;
     } catch (error: any) {
       if (error.response) {
@@ -153,19 +160,19 @@ export const authApi = {
 
   getCurrentUser: async () => {
     try {
-    const response = await apiRequest<any>('/user');
-    // Handle response structure - backend returns { success: true, data: { user: ... } }
-    // apiRequest returns data.data || data, so response could be { user: ... } or just user object
+      const response = await apiRequest<any>('/user');
+      // Handle response structure - backend returns { success: true, data: { user: ... } }
+      // apiRequest returns data.data || data, so response could be { user: ... } or just user object
       if (response && typeof response === 'object') {
-    if (response.user) {
+        if (response.user) {
           return { user: response.user };
         }
         // If response itself is the user object
         if (response.id) {
           return { user: response };
         }
-    }
-    return response;
+      }
+      return response;
     } catch (error: any) {
       // Re-throw with more context
       if (error.message) {
@@ -180,7 +187,7 @@ export const authApi = {
 export const usersApi = {
   getAll: async (roleOrParams?: string | { role?: string; course_id?: number; search?: string }) => {
     const queryParams = new URLSearchParams();
-    
+
     // Support both old signature (string for role) and new signature (object with params)
     if (typeof roleOrParams === 'string') {
       // Old signature: usersApi.getAll('trainee')
@@ -191,7 +198,7 @@ export const usersApi = {
       if (roleOrParams.course_id) queryParams.append('course_id', roleOrParams.course_id.toString());
       if (roleOrParams.search) queryParams.append('search', roleOrParams.search);
     }
-    
+
     const queryString = queryParams.toString();
     const endpoint = `/users${queryString ? `?${queryString}` : ''}`;
     const response = await apiRequest<any>(endpoint);
@@ -230,11 +237,9 @@ export const usersApi = {
     try {
       const response = await fetch(`${API_BASE_URL}/users`, {
         method: 'POST',
-        headers: {
+        headers: getHeaders({
           'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': `Bearer ${getToken()}`,
-        },
+        }),
         body: JSON.stringify(userData),
       });
 
@@ -246,7 +251,7 @@ export const usersApi = {
         throw error;
       }
 
-      return data.data || data;
+      return data;
     } catch (error: any) {
       if (error.response) {
         throw error;
@@ -278,18 +283,15 @@ export const usersApi = {
   },
 
   downloadTemplate: async () => {
-    const token = getToken();
     const response = await fetch(`${API_BASE_URL}/users/template/download`, {
       method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
+      headers: getHeaders(),
     });
-    
+
     if (!response.ok) {
       throw new Error('Failed to download template');
     }
-    
+
     const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -308,23 +310,21 @@ export const usersApi = {
     if (courseId !== undefined && courseId !== null) {
       formData.append('course_id', courseId.toString());
     }
-    
+
     const response = await fetch(`${API_BASE_URL}/users/import/excel`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
+      headers: getHeaders(),
       body: formData,
     });
-    
+
     const data = await response.json();
-    
+
     if (!response.ok) {
       const error = new Error(data.message || `HTTP error! status: ${response.status}`);
       (error as any).response = { data };
       throw error;
     }
-    
+
     return data;
   },
 };
@@ -597,22 +597,22 @@ export const materialsApi = {
     if (!file || !(file instanceof File)) {
       throw new Error('Invalid file provided');
     }
-    
+
     if (!subject || !subject.trim()) {
       throw new Error('Subject is required');
     }
 
     const token = getToken();
     const formData = new FormData();
-    
+
     // Ensure name is not empty - use file name if name is empty or whitespace
     const materialName = (name && name.trim()) || file.name;
-    
+
     // Final validation - ensure we have a name
     if (!materialName || !materialName.trim()) {
       throw new Error('Material name is required');
     }
-    
+
     // Append file - make sure it's the actual File object
     formData.append('file', file, file.name);
     formData.append('name', materialName);
@@ -638,64 +638,55 @@ export const materialsApi = {
       throw new Error('File was not added to FormData');
     }
 
-    const headers: HeadersInit = {
-      'Accept': 'application/json',
-      // DO NOT set Content-Type - browser will set it with boundary for multipart/form-data
-    };
-
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
     try {
-    const response = await fetch(`${API_BASE_URL}/materials`, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
+      const response = await fetch(`${API_BASE_URL}/materials`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: formData,
+      });
 
       // Log response status
       console.log('Upload response status:', response.status, response.statusText);
 
-    if (!response.ok) {
-      let errorMessage = 'An error occurred';
+      if (!response.ok) {
+        let errorMessage = 'An error occurred';
         let errorData: any = null;
-        
-      try {
+
+        try {
           const responseText = await response.text();
           console.error('Error response text:', responseText);
-          
+
           if (responseText) {
             errorData = JSON.parse(responseText);
             console.error('Material upload error response:', errorData);
           }
-          
+
           if (errorData) {
-        if (errorData.message) {
-          errorMessage = errorData.message;
-        } else if (errorData.errors) {
+            if (errorData.message) {
+              errorMessage = errorData.message;
+            } else if (errorData.errors) {
               // Laravel validation errors - format them nicely
               const errorMessages = Object.entries(errorData.errors).map(([field, messages]) => {
                 const msgArray = Array.isArray(messages) ? messages : [messages];
                 return `${field}: ${msgArray.join(', ')}`;
               });
               errorMessage = errorMessages.join('; ');
-        } else if (errorData.error) {
-          errorMessage = errorData.error;
+            } else if (errorData.error) {
+              errorMessage = errorData.error;
             }
           } else {
             errorMessage = `HTTP error! status: ${response.status} ${response.statusText}`;
-        }
-      } catch (e) {
+          }
+        } catch (e) {
           console.error('Failed to parse error response:', e);
           errorMessage = `HTTP error! status: ${response.status} ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
       }
-      throw new Error(errorMessage);
-    }
 
-    const data = await response.json();
+      const data = await response.json();
       console.log('Upload success:', data);
-    return data.data || data;
+      return data.data || data;
     } catch (error: any) {
       // Re-throw if it's already our formatted error
       if (error instanceof Error && error.message !== 'An error occurred') {
@@ -707,14 +698,8 @@ export const materialsApi = {
   },
 
   download: async (id: string) => {
-    const token = getToken();
-    const headers: HeadersInit = {};
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
     const response = await fetch(`${API_BASE_URL}/materials/${id}/download`, {
-      headers,
+      headers: getHeaders(),
     });
 
     if (!response.ok) {
@@ -763,17 +748,9 @@ export const galleryApi = {
     formData.append('image', file);
     formData.append('title', title);
 
-    const headers: HeadersInit = {
-      'Accept': 'application/json',
-    };
-
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
     const response = await fetch(`${API_BASE_URL}/gallery`, {
       method: 'POST',
-      headers,
+      headers: getHeaders(),
       body: formData,
     });
 
@@ -1066,7 +1043,7 @@ export const notificationsApi = {
   },
 
   getUnread: async () => {
-    const response = await apiRequest<any[]>('/notifications/unread');
+    const response = await apiRequest<any>('/notifications/unread');
     return Array.isArray(response) ? response : (response?.data || []);
   },
 
@@ -1111,7 +1088,7 @@ export const activityLogApi = {
     if (filters?.course_id) params.append('course_id', filters.course_id.toString());
     if (filters?.page) params.append('page', filters.page.toString());
     if (filters?.per_page) params.append('per_page', filters.per_page.toString());
-    
+
     const endpoint = `/admin/doctor-activities${params.toString() ? '?' + params.toString() : ''}`;
     const response = await apiRequest<{
       data: any[];
@@ -1132,7 +1109,7 @@ export const commentsApi = {
     const params = new URLSearchParams();
     params.append('commentable_type', commentableType);
     params.append('commentable_id', commentableId.toString());
-    const response = await apiRequest<any[]>(`/comments?${params.toString()}`);
+    const response = await apiRequest<any>(`/comments?${params.toString()}`);
     return Array.isArray(response) ? response : (response?.data || []);
   },
 
@@ -1221,17 +1198,17 @@ export const adminPermissionsApi = {
       can_manage_activities: boolean;
       can_view_doctor_dashboard: boolean;
     }>('/admin/permissions/my');
-    
+
     // If response is already the permissions object (which it should be after apiRequest unwrapping)
     if (response && typeof response === 'object' && 'can_manage_users' in response) {
       return response;
     }
-    
+
     // If response is wrapped in data property (shouldn't happen, but handle it)
     if (response && (response as any).data && typeof (response as any).data === 'object') {
       return (response as any).data;
     }
-    
+
     console.warn('Unexpected permissions response format:', response);
     // Return default (all false) if we can't parse
     return {
@@ -1260,10 +1237,10 @@ export const disciplineIssuesApi = {
     if (params?.approval_status) queryParams.append('approval_status', params.approval_status);
     if (params?.search) queryParams.append('search', params.search);
     if (params?.course_id) queryParams.append('course_id', params.course_id.toString());
-    
+
     const queryString = queryParams.toString();
     const endpoint = `/discipline-issues${queryString ? `?${queryString}` : ''}`;
-    
+
     const response = await apiRequest<any>(endpoint);
     if (Array.isArray(response)) {
       return response;
@@ -1310,13 +1287,9 @@ export const disciplineIssuesApi = {
       formData.append('course_id', data.course_id.toString());
     }
 
-    const token = getToken();
     const response = await fetch(`${API_BASE_URL}/discipline-issues`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/json',
-      },
+      headers: getHeaders(),
       body: formData,
     });
 
@@ -1350,13 +1323,9 @@ export const disciplineIssuesApi = {
     }
     formData.append('_method', 'PUT');
 
-    const token = getToken();
     const response = await fetch(`${API_BASE_URL}/discipline-issues/${id}`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/json',
-      },
+      method: 'POST', // Use POST with _method override for FormData
+      headers: getHeaders(),
       body: formData,
     });
 
@@ -1377,13 +1346,9 @@ export const disciplineIssuesApi = {
   },
 
   downloadDocument: async (id: number) => {
-    const token = getToken();
     const response = await fetch(`${API_BASE_URL}/discipline-issues/${id}/document/download`, {
       method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/json',
-      },
+      headers: getHeaders(),
     });
 
     if (!response.ok) {
@@ -1395,7 +1360,7 @@ export const disciplineIssuesApi = {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    
+
     const contentDisposition = response.headers.get('content-disposition');
     let fileName = 'document';
     if (contentDisposition) {
@@ -1404,7 +1369,7 @@ export const disciplineIssuesApi = {
         fileName = fileNameMatch[1];
       }
     }
-    
+
     link.download = fileName;
     document.body.appendChild(link);
     link.click();

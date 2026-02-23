@@ -33,7 +33,7 @@ const LandingPage = () => {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <RotatingLogo className="w-20 h-20 mx-auto mb-4" />
+          <RotatingLogo className="w-40 h-40 mx-auto mb-4" />
           <p className="text-muted-foreground">Loading...</p>
         </div>
       </div>
@@ -53,11 +53,11 @@ const LandingPage = () => {
       <div className="relative z-10 w-full max-w-6xl mx-4">
         <div className="text-center mb-12">
           <div className="flex justify-center mb-6">
-            <RotatingLogo className="w-32 h-32" />
+            <RotatingLogo className="w-64 h-64" />
           </div>
-          <h1 className="text-5xl font-bold text-white mb-4">TAWA Training System</h1>
-          <p className="text-xl text-white/90">Tanzania Wildlife Management Authority</p>
-          <p className="text-lg text-white/80 mt-2">Ranger Training Headquarters</p>
+          <h1 className="text-5xl font-bold text-foreground mb-4 drop-shadow-lg">TAWA Training System</h1>
+          <p className="text-xl text-foreground/90">Tanzania Wildlife Management Authority</p>
+          <p className="text-lg text-muted-foreground mt-2">Ranger Training Headquarters</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
@@ -79,7 +79,7 @@ const LandingPage = () => {
                 <p className="text-sm text-muted-foreground mb-6 text-center">
                   Login with your registered admin credentials to access your course dashboard
                 </p>
-                <Button 
+                <Button
                   onClick={() => navigate("/login")}
                   className="w-full bg-gradient-military hover:opacity-90 text-white font-semibold py-6 text-lg"
                   size="lg"
@@ -95,18 +95,20 @@ const LandingPage = () => {
         {/* Super Admin Login Link */}
         <div className="mt-8 text-center">
           <Button
-            variant="ghost"
-            className="text-white/80 hover:text-white hover:bg-white/10"
-            onClick={() => navigate("/super-admin/login")}
+            variant="outline"
+            className="border-purple-500/30 hover:bg-purple-500/10 hover:border-purple-500/50"
+            onClick={() => navigate("/super-admin")}
           >
-            <Shield className="w-4 h-4 mr-2" />
+            <Shield className="w-4 h-4 mr-2 text-purple-500" />
             Super Admin Login
           </Button>
         </div>
 
         {/* Footer */}
-        <div className="mt-8 text-center text-white/80 text-sm">
-          <p>Secured by TAWA IT Department</p>
+        <div className="mt-8 text-center">
+          <p className="text-sm font-medium text-foreground/70 bg-card/50 backdrop-blur-sm px-4 py-2 rounded-lg border border-border/50 inline-block">
+            Secured by TAWA IT Department
+          </p>
         </div>
       </div>
     </div>
