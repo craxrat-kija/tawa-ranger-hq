@@ -7,6 +7,10 @@
         {
             "source": "/storage/:path*",
             "destination": "http://104.248.191.90:9000/storage/:path*"
+        },
+        {
+            "source": "/(.*)",
+            "destination": "/index.html"
         }
     ]
 }
