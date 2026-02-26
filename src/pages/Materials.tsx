@@ -8,7 +8,7 @@ import { Upload, Download, FileText, Video, Image, File, Search, Trash2 } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { materialsApi, coursesApi } from "@/lib/api";
+import { materialsApi, coursesApi, BASE_URL } from "@/lib/api";
 
 interface MaterialItem {
   id: number;
@@ -51,7 +51,7 @@ const Materials = () => {
         setLoadingCourses(true);
         const coursesData = await coursesApi.getAll().catch(() => []);
         const coursesArray = Array.isArray(coursesData) ? coursesData : [];
-        
+
         // For regular admins, filter to only their course
         if (!isSuperAdmin && adminCourseId) {
           const filteredCourses = coursesArray.filter((c: any) => c.id === adminCourseId);
@@ -98,7 +98,6 @@ const Materials = () => {
         searchQuery || undefined,
         courseId
       );
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
       setMaterials(data.map((m: any) => ({
         id: m.id,
         name: m.name,
@@ -106,7 +105,7 @@ const Materials = () => {
         subject: m.subject,
         size: m.file_size,
         date: m.created_at ? new Date(m.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-        url: `${API_BASE_URL}/storage/${m.file_path}`,
+        url: `${BASE_URL}/storage/${m.file_path}`,
       })));
     } catch (error) {
       console.error('Error loading materials:', error);
@@ -156,8 +155,8 @@ const Materials = () => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setUploadData({ 
-        ...uploadData, 
+      setUploadData({
+        ...uploadData,
         file,
         name: file.name,
       });
@@ -187,7 +186,7 @@ const Materials = () => {
 
     // Ensure name is not empty - trim whitespace and fallback to filename
     const materialName = (uploadData.name && uploadData.name.trim()) || uploadData.file.name;
-    
+
     // Validate name length (max 255 characters as per backend)
     if (materialName.length > 255) {
       toast({
@@ -219,7 +218,7 @@ const Materials = () => {
     }
 
     setUploading(true);
-    
+
     try {
       await materialsApi.create(
         uploadData.file,
@@ -227,18 +226,18 @@ const Materials = () => {
         uploadData.subject,
         courseId
       );
-      
+
       setShowUploadDialog(false);
       setUploadData({ name: "", subject: "Maps", file: null });
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
-      
+
       toast({
         title: "Material Uploaded",
         description: `${uploadData.name || uploadData.file.name} has been uploaded successfully`,
       });
-      
+
       loadMaterials();
     } catch (error: any) {
       console.error('Upload error:', error);
@@ -329,8 +328,8 @@ const Materials = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-primary">Training Materials</h1>
         {((user?.role === "admin" || user?.role === "super_admin" || user?.role === "instructor")) && (
-          <Button 
-            onClick={() => setShowUploadDialog(true)} 
+          <Button
+            onClick={() => setShowUploadDialog(true)}
             className="bg-gradient-military"
           >
             <Upload className="w-4 h-4 mr-2" />
@@ -382,11 +381,11 @@ const Materials = () => {
                 placeholder="Enter material name (defaults to filename)"
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="material-subject">Subject *</Label>
-              <Select 
-                value={uploadData.subject} 
+              <Select
+                value={uploadData.subject}
                 onValueChange={(value) => setUploadData({ ...uploadData, subject: value })}
               >
                 <SelectTrigger>
@@ -406,8 +405,8 @@ const Materials = () => {
             </div>
 
             <div className="flex justify-end gap-2">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => {
                   setShowUploadDialog(false);
                   setUploadData({ name: "", subject: "Maps", file: null });
@@ -418,8 +417,8 @@ const Materials = () => {
               >
                 Cancel
               </Button>
-              <Button 
-                onClick={handleUpload} 
+              <Button
+                onClick={handleUpload}
                 className="bg-gradient-military"
                 disabled={uploading}
               >
@@ -468,44 +467,44 @@ const Materials = () => {
             </div>
           ) : (
             filteredMaterials.map((material) => (
-          <Card key={material.id} className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  {getFileIcon(material.type)}
-                  <div>
-                    <CardTitle className="text-sm">{material.name}</CardTitle>
-                    <CardDescription className="text-xs">{material.subject}</CardDescription>
+              <Card key={material.id} className="hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      {getFileIcon(material.type)}
+                      <div>
+                        <CardTitle className="text-sm">{material.name}</CardTitle>
+                        <CardDescription className="text-xs">{material.subject}</CardDescription>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="flex justify-between items-center text-sm text-muted-foreground mb-4">
-                <span>{material.size}</span>
-                <span>{material.date}</span>
-              </div>
-              <div className="flex gap-2">
-                <Button 
-                  onClick={() => handleDownload(material)} 
-                  className="flex-1"
-                  variant="outline"
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Download
-                </Button>
-                {((user?.role === "admin" || user?.role === "super_admin" || user?.role === "instructor")) && (
-                  <Button 
-                    onClick={() => handleDelete(material.id)} 
-                    variant="destructive"
-                    size="icon"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex justify-between items-center text-sm text-muted-foreground mb-4">
+                    <span>{material.size}</span>
+                    <span>{material.date}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => handleDownload(material)}
+                      className="flex-1"
+                      variant="outline"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Download
+                    </Button>
+                    {((user?.role === "admin" || user?.role === "super_admin" || user?.role === "instructor")) && (
+                      <Button
+                        onClick={() => handleDelete(material.id)}
+                        variant="destructive"
+                        size="icon"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
             ))
           )}
         </div>

@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { RotatingLogo } from "@/components/RotatingLogo";
 import { BookOpen, Save, ArrowLeft, List, Info } from "lucide-react";
 import { Loading } from "@/components/Loading";
-import { coursesApi, courseMetadataApi } from "@/lib/api";
+import { coursesApi, courseMetadataApi, API_BASE_URL } from "@/lib/api";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -67,7 +67,7 @@ const CreateCourse = () => {
       const token = localStorage.getItem('auth_token');
       if (!token) return;
 
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'}/courses`, {
+      const response = await fetch(`${API_BASE_URL}/courses`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Accept': 'application/json',
@@ -124,7 +124,7 @@ const CreateCourse = () => {
         throw new Error('Not authenticated. Please login again.');
       }
 
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'}/courses`, {
+      const response = await fetch(`${API_BASE_URL}/courses`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -228,8 +228,8 @@ const CreateCourse = () => {
                         <span className="font-medium">{course.code || 'N/A'}</span> - {course.name}
                       </div>
                       <span className={`px-2 py-1 rounded text-xs ${course.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100' :
-                          course.status === 'completed' ? 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100' :
-                            'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100'
+                        course.status === 'completed' ? 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100' :
+                          'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100'
                         }`}>
                         {course.status}
                       </span>

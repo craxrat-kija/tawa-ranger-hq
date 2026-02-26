@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Loading } from "./Loading";
 import Setup from "../pages/Setup";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+import { API_BASE_URL } from "../lib/api";
 
 export const SetupChecker = ({ children }: { children: React.ReactNode }) => {
   const [isSetup, setIsSetup] = useState<boolean | null>(null);

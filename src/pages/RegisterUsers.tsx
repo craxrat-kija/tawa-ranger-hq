@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { usersApi, subjectsApi, coursesApi, apiRequest } from "@/lib/api";
+import { usersApi, subjectsApi, coursesApi, apiRequest, API_BASE_URL, BASE_URL } from "@/lib/api";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -541,8 +541,7 @@ const RegisterUsers = () => {
           formDataToSend.append('_method', 'PUT');
 
           const token = localStorage.getItem('auth_token');
-          const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-          const response = await fetch(`${API_BASE_URL}/api/users/${editUser.id}`, {
+          const response = await fetch(`${API_BASE_URL}/users/${editUser.id}`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -729,8 +728,7 @@ const RegisterUsers = () => {
           });
 
           const token = localStorage.getItem('auth_token');
-          const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-          const response = await fetch(`${API_BASE_URL}/api/users`, {
+          const response = await fetch(`${API_BASE_URL}/users`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -942,8 +940,7 @@ const RegisterUsers = () => {
       // Set current passport URL if user has one
       const passportPicture = userData.passport_picture || user.passport_picture;
       if (passportPicture) {
-        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-        setCurrentPassportUrl(`${API_BASE_URL}/storage/${passportPicture}`);
+        setCurrentPassportUrl(`${BASE_URL}/storage/${passportPicture}`);
       } else {
         setCurrentPassportUrl(null);
       }
@@ -977,11 +974,10 @@ const RegisterUsers = () => {
     if (!viewingPassportUser?.passport_picture || !viewingPassportUser?.id) return;
 
     try {
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
       const token = localStorage.getItem('auth_token');
 
       // Use the API endpoint to download with proper CORS headers
-      const downloadUrl = `${API_BASE_URL}/api/users/${viewingPassportUser.id}/passport-picture/download`;
+      const downloadUrl = `${API_BASE_URL}/users/${viewingPassportUser.id}/passport-picture/download`;
 
       // Fetch the image with authentication
       const response = await fetch(downloadUrl, {
@@ -2308,7 +2304,7 @@ const RegisterUsers = () => {
                 <>
                   <div className="flex justify-center">
                     <img
-                      src={`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/storage/${viewingPassportUser.passport_picture}`}
+                      src={`${BASE_URL}/storage/${viewingPassportUser.passport_picture}`}
                       alt={`${viewingPassportUser.name}'s passport picture`}
                       className="max-w-full h-auto rounded-lg border-2 border-gray-300 shadow-lg"
                       onError={(e) => {

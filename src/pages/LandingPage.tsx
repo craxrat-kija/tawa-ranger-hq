@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RotatingLogo } from "@/components/RotatingLogo";
 import { LogIn, BookOpen, Settings, ArrowRight, Shield } from "lucide-react";
+import { API_BASE_URL } from "@/lib/api";
 
 const LandingPage = () => {
   const navigate = useNavigate();
@@ -16,7 +17,7 @@ const LandingPage = () => {
   useEffect(() => {
     const checkSetup = async () => {
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'}/setup/check`);
+        const response = await fetch(`${API_BASE_URL}/setup/check`);
         const data = await response.json();
         setIsSetup(data.is_setup === true);
       } catch (error) {

@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { RotatingLogo } from "@/components/RotatingLogo";
 import { Settings, User, BookOpen, Calendar, Save, Download, Upload } from "lucide-react";
-import { courseMetadataApi } from "@/lib/api";
+import { courseMetadataApi, API_BASE_URL } from "@/lib/api";
 
 const Setup = () => {
   const navigate = useNavigate();
@@ -65,7 +65,7 @@ const Setup = () => {
 
   const downloadTemplate = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'}/setup/template`, {
+      const response = await fetch(`${API_BASE_URL}/setup/template`, {
         method: 'GET',
         headers: {
           'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -122,7 +122,7 @@ const Setup = () => {
         formDataToSend.append('users_file', excelFile);
       }
 
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'}/setup`, {
+      const response = await fetch(`${API_BASE_URL}/setup`, {
         method: 'POST',
         headers: {
           'Accept': 'application/json',

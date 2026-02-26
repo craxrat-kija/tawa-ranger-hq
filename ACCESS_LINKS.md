@@ -6,7 +6,7 @@
 - **Base URL**: `http://localhost:8080`
 
 ### Backend API
-- **Base URL**: `http://localhost:8000`
+- **Base URL**: `http://104.248.191.90:9000`
 
 ---
 

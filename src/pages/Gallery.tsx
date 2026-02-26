@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Upload, Trash2, X, Search } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { galleryApi } from "@/lib/api";
+import { galleryApi, BASE_URL } from "@/lib/api";
 
 interface ImageItem {
   id: number;
@@ -39,20 +39,18 @@ const Gallery = () => {
       setIsLoading(true);
       const params = searchQuery ? { search: searchQuery } : {};
       const data = await galleryApi.getAll(params);
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-      console.log('Gallery data:', data);
       setImages(data.map((item: any) => {
         // Use image_url from backend if available, otherwise construct it
-        let imageUrl = item.image_url || `${API_BASE_URL}/storage/${item.image_path}`;
-        
-        // Fix URL if backend returns URL without port (e.g., http://localhost/storage -> http://localhost:8000/storage)
-        if (imageUrl.includes('http://localhost/storage') && !imageUrl.includes(':8000')) {
-          imageUrl = imageUrl.replace('http://localhost/storage', `${API_BASE_URL}/storage`);
+        let imageUrl = item.image_url || `${BASE_URL}/storage/${item.image_path}`;
+
+        // Fix URL if backend returns URL without port (e.g., http://localhost/storage -> /storage)
+        if (imageUrl.includes('http://localhost/storage')) {
+          imageUrl = imageUrl.replace('http://localhost/storage', `${BASE_URL}/storage`);
         }
-        if (imageUrl.includes('http://127.0.0.1/storage') && !imageUrl.includes(':8000')) {
-          imageUrl = imageUrl.replace('http://127.0.0.1/storage', `${API_BASE_URL}/storage`);
+        if (imageUrl.includes('http://127.0.0.1/storage')) {
+          imageUrl = imageUrl.replace('http://127.0.0.1/storage', `${BASE_URL}/storage`);
         }
-        
+
         console.log('Image URL:', imageUrl, 'Image path:', item.image_path);
         return {
           id: item.id,
@@ -155,22 +153,22 @@ const Gallery = () => {
     }
 
     setUploading(true);
-    
+
     try {
       await galleryApi.create(uploadData.file, uploadData.title);
-      
+
       setShowUploadDialog(false);
       setUploadData({ title: "", file: null });
       setPreview(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
-      
+
       toast({
         title: "Photo Uploaded",
         description: `${uploadData.title} has been added to the gallery`,
       });
-      
+
       loadGallery();
     } catch (error: any) {
       console.error('Upload error:', error);
@@ -212,8 +210,8 @@ const Gallery = () => {
           <p className="text-muted-foreground">Training moments and achievements</p>
         </div>
         {(user?.role === "admin" || user?.role === "super_admin") && (
-          <Button 
-            onClick={() => setShowUploadDialog(true)} 
+          <Button
+            onClick={() => setShowUploadDialog(true)}
             className="bg-gradient-military"
           >
             <Upload className="w-4 h-4 mr-2" />
@@ -265,9 +263,9 @@ const Gallery = () => {
               />
               {preview ? (
                 <div className="mt-4">
-                  <img 
-                    src={preview} 
-                    alt="Preview" 
+                  <img
+                    src={preview}
+                    alt="Preview"
                     className="max-w-full h-48 object-contain rounded-lg border bg-muted"
                     onLoad={() => {
                       console.log('Preview image loaded successfully');
@@ -297,7 +295,7 @@ const Gallery = () => {
                 </div>
               ) : null}
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="image-title">Photo Title *</Label>
               <Input
@@ -310,9 +308,9 @@ const Gallery = () => {
             </div>
 
             <div className="flex justify-end gap-2">
-              <Button 
+              <Button
                 type="button"
-                variant="outline" 
+                variant="outline"
                 onClick={() => {
                   setShowUploadDialog(false);
                   setUploadData({ title: "", file: null });
@@ -325,8 +323,8 @@ const Gallery = () => {
               >
                 Cancel
               </Button>
-              <Button 
-                onClick={handleUpload} 
+              <Button
+                onClick={handleUpload}
                 className="bg-gradient-military"
                 disabled={uploading || !uploadData.file || !uploadData.title.trim()}
               >
@@ -348,26 +346,26 @@ const Gallery = () => {
             </div>
           ) : (
             images.map((image) => (
-          <Card 
-            key={image.id} 
-            className="overflow-hidden hover:shadow-xl transition-all group relative"
-          >
-            <div 
-              className="relative aspect-square overflow-hidden cursor-pointer bg-muted"
-              onClick={() => setSelectedImage(image.url)}
-            >
-              <img 
-                src={image.url} 
-                alt={image.title}
-                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                onError={(e) => {
-                  console.error('Image load error:', image.url);
-                  const target = e.target as HTMLImageElement;
-                  target.style.display = 'none';
-                  // Show placeholder
-                  const parent = target.parentElement;
-                  if (parent) {
-                    parent.innerHTML = `
+              <Card
+                key={image.id}
+                className="overflow-hidden hover:shadow-xl transition-all group relative"
+              >
+                <div
+                  className="relative aspect-square overflow-hidden cursor-pointer bg-muted"
+                  onClick={() => setSelectedImage(image.url)}
+                >
+                  <img
+                    src={image.url}
+                    alt={image.title}
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                    onError={(e) => {
+                      console.error('Image load error:', image.url);
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                      // Show placeholder
+                      const parent = target.parentElement;
+                      if (parent) {
+                        parent.innerHTML = `
                       <div class="w-full h-full flex items-center justify-center bg-muted text-muted-foreground">
                         <div class="text-center p-4">
                           <p class="text-sm font-medium">Image not found</p>
@@ -375,33 +373,33 @@ const Gallery = () => {
                         </div>
                       </div>
                     `;
-                  }
-                }}
-                onLoad={() => {
-                  console.log('Image loaded successfully:', image.url);
-                }}
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
-                  <h3 className="font-semibold">{image.title}</h3>
-                  <p className="text-xs text-white/80">{image.date}</p>
+                      }
+                    }}
+                    onLoad={() => {
+                      console.log('Image loaded successfully:', image.url);
+                    }}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
+                      <h3 className="font-semibold">{image.title}</h3>
+                      <p className="text-xs text-white/80">{image.date}</p>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-            {(user?.role === "admin" || user?.role === "super_admin") && (
-              <Button
-                variant="destructive"
-                size="icon"
-                className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDelete(image.id);
-                }}
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            )}
-          </Card>
+                {(user?.role === "admin" || user?.role === "super_admin") && (
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(image.id);
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                )}
+              </Card>
             ))
           )}
         </div>
@@ -409,7 +407,7 @@ const Gallery = () => {
 
       {/* Lightbox */}
       {selectedImage && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
           onClick={() => setSelectedImage(null)}
         >
@@ -421,9 +419,9 @@ const Gallery = () => {
           >
             <X className="w-6 h-6" />
           </Button>
-          <img 
-            src={selectedImage} 
-            alt="Full size" 
+          <img
+            src={selectedImage}
+            alt="Full size"
             className="max-w-full max-h-full object-contain"
             onClick={(e) => e.stopPropagation()}
           />

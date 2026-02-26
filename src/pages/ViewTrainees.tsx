@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
-import { usersApi, medicalRecordsApi } from "@/lib/api";
+import { usersApi, medicalRecordsApi, API_BASE_URL } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { Search, Eye, Edit, Heart, Upload, FileText, Trash, Download } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -114,16 +114,16 @@ const ViewTrainees = () => {
         status: "active" as const, // This would come from enrollment status in a real system
       }));
       setTrainees(traineesList);
-      
+
       // Check which trainees have medical records
       if (traineesList.length > 0) {
         try {
           const allRecords = await medicalRecordsApi.getAll({ latest: true });
           const recordsSet = new Set<string>();
-          
+
           // Handle both array and object responses
           const recordsArray = Array.isArray(allRecords) ? allRecords : (allRecords?.data || []);
-          
+
           // Create a set of user_ids that have medical records
           recordsArray.forEach((record: any) => {
             const userId = record.user_id || record.user?.id;
@@ -131,7 +131,7 @@ const ViewTrainees = () => {
               recordsSet.add(userId.toString());
             }
           });
-          
+
           setTraineesWithRecords(recordsSet);
         } catch (error) {
           console.error('Error loading medical records:', error);
@@ -145,7 +145,7 @@ const ViewTrainees = () => {
   };
 
   const getStatusColor = (status: string) => {
-    switch(status) {
+    switch (status) {
       case "active": return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100";
       case "completed": return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100";
       case "suspended": return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100";
@@ -156,14 +156,14 @@ const ViewTrainees = () => {
   // Filter trainees based on search query and registration status
   const filteredTrainees = useMemo(() => {
     let filtered = trainees;
-    
+
     // Filter by registration status
     if (filterTab === "registered") {
       filtered = filtered.filter((trainee) => traineesWithRecords.has(trainee.id));
     } else if (filterTab === "unregistered") {
       filtered = filtered.filter((trainee) => !traineesWithRecords.has(trainee.id));
     }
-    
+
     // Filter by search query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
@@ -178,7 +178,7 @@ const ViewTrainees = () => {
         );
       });
     }
-    
+
     return filtered;
   }, [trainees, searchQuery, filterTab, traineesWithRecords]);
 
@@ -188,17 +188,17 @@ const ViewTrainees = () => {
     try {
       setIsLoadingRecord(true);
       setSelectedTrainee(trainee);
-      
+
       // Get latest medical record for this user
       const response = await medicalRecordsApi.getLatestByUser(trainee.id);
       const recordData = response?.data || response;
-      
+
       if (recordData) {
         setMedicalRecord(recordData);
         // Load attachments for view
         if (recordData.attachments) {
-          const atts = typeof recordData.attachments === 'string' 
-            ? JSON.parse(recordData.attachments) 
+          const atts = typeof recordData.attachments === 'string'
+            ? JSON.parse(recordData.attachments)
             : recordData.attachments;
           setExistingAttachments(Array.isArray(atts) ? atts : []);
         } else {
@@ -247,11 +247,11 @@ const ViewTrainees = () => {
     try {
       setIsLoadingRecord(true);
       setSelectedTrainee(trainee);
-      
+
       // Get latest medical record for this user
       const response = await medicalRecordsApi.getLatestByUser(trainee.id);
       const recordData = response?.data || response;
-      
+
       if (recordData) {
         setMedicalRecord(recordData);
         setFormData({
@@ -273,8 +273,8 @@ const ViewTrainees = () => {
         });
         // Load existing attachments
         if (recordData.attachments) {
-          const atts = typeof recordData.attachments === 'string' 
-            ? JSON.parse(recordData.attachments) 
+          const atts = typeof recordData.attachments === 'string'
+            ? JSON.parse(recordData.attachments)
             : recordData.attachments;
           setExistingAttachments(Array.isArray(atts) ? atts : []);
         } else {
@@ -303,7 +303,7 @@ const ViewTrainees = () => {
         setExistingAttachments([]);
         setAttachments([]);
       }
-      
+
       setShowEditDialog(true);
     } catch (error: any) {
       console.error('Error loading medical record:', error);
@@ -382,9 +382,8 @@ const ViewTrainees = () => {
   };
 
   const handleDownloadAttachment = (filePath: string) => {
-    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-    const url = `${API_BASE_URL}/storage/${filePath}`;
-    
+    const url = `${API_BASE_URL.replace('/api', '')}/storage/${filePath}`;
+
     // Create a temporary link and trigger download
     const link = document.createElement('a');
     link.href = url;
@@ -397,7 +396,7 @@ const ViewTrainees = () => {
 
   const handleSaveMedicalInfo = async () => {
     if (!selectedTrainee) return;
-    
+
     if (!formData.emergency_contact) {
       toast({
         title: "Required Field",
@@ -409,7 +408,7 @@ const ViewTrainees = () => {
 
     try {
       setIsSaving(true);
-      
+
       // If attachments are present, use FormData
       if (attachments.length > 0) {
         const formDataToSend = new FormData();
@@ -429,19 +428,19 @@ const ViewTrainees = () => {
         if (formData.chronic_illnesses) formDataToSend.append('chronic_illnesses', formData.chronic_illnesses);
         if (formData.trauma_history) formDataToSend.append('trauma_history', formData.trauma_history);
         if (formData.blood_type) formDataToSend.append('blood_type', formData.blood_type);
-        
+
         // Add attachments
         attachments.forEach((file, index) => {
           formDataToSend.append(`attachments[${index}]`, file);
         });
 
         const token = localStorage.getItem('auth_token');
-        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-        
+
+
         if (medicalRecord?.id) {
           // Update existing medical record
           formDataToSend.append('_method', 'PUT');
-          const response = await fetch(`${API_BASE_URL}/api/medical-records/${medicalRecord.id}`, {
+          const response = await fetch(`${API_BASE_URL}/medical-records/${medicalRecord.id}`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -462,7 +461,7 @@ const ViewTrainees = () => {
         } else {
           // Create new medical record
           formDataToSend.append('user_id', selectedTrainee.id);
-          const response = await fetch(`${API_BASE_URL}/api/medical-records`, {
+          const response = await fetch(`${API_BASE_URL}/medical-records`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -532,7 +531,7 @@ const ViewTrainees = () => {
           });
         }
       }
-      
+
       setShowEditDialog(false);
       setMedicalRecord(null);
       setSelectedTrainee(null);
@@ -541,7 +540,7 @@ const ViewTrainees = () => {
       if (attachmentsInputRef.current) {
         attachmentsInputRef.current.value = "";
       }
-      
+
       // Reload trainees to update the records status
       await loadTrainees();
     } catch (error: any) {
@@ -561,11 +560,11 @@ const ViewTrainees = () => {
       <div>
         <h1 className="text-3xl font-bold text-primary">View {roleDisplay}</h1>
         <p className="text-muted-foreground">
-          {user?.role === "instructor" 
+          {user?.role === "instructor"
             ? "View all trainees assigned to your courses"
             : user?.role === "doctor"
-            ? "View all trainee health records and information"
-            : "View all trainees in the system"}
+              ? "View all trainee health records and information"
+              : "View all trainees in the system"}
         </p>
       </div>
 
@@ -595,11 +594,11 @@ const ViewTrainees = () => {
         <CardHeader>
           <CardTitle>Trainee Directory</CardTitle>
           <CardDescription>
-            {user?.role === "instructor" 
+            {user?.role === "instructor"
               ? "Trainees enrolled in your courses"
               : user?.role === "doctor"
-              ? "All trainees' health information"
-              : "All trainees in the TAWA system"}
+                ? "All trainees' health information"
+                : "All trainees in the TAWA system"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -627,49 +626,49 @@ const ViewTrainees = () => {
                   </TableRow>
                 ) : (
                   filteredTrainees.map((trainee) => (
-                <TableRow key={trainee.id}>
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <Avatar className="w-8 h-8">
-                        <AvatarFallback>{trainee.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                      </Avatar>
-                      <span className="font-medium">{trainee.name}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>{trainee.email}</TableCell>
-                  <TableCell>{trainee.course}</TableCell>
-                  <TableCell>{trainee.department}</TableCell>
-                  <TableCell>
-                    <Badge className={getStatusColor(trainee.status)}>
-                      {trainee.status.charAt(0).toUpperCase() + trainee.status.slice(1)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{trainee.phone}</TableCell>
-                  {user?.role === "doctor" && (
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleViewMedicalInfo(trainee)}
-                          className="flex items-center gap-1"
-                        >
-                          <Eye className={`w-4 h-4 ${traineesWithRecords.has(trainee.id) ? 'text-blue-500' : ''}`} />
-                          View
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleEditMedicalInfo(trainee)}
-                          className="flex items-center gap-1"
-                        >
-                          <Edit className="w-4 h-4" />
-                          {medicalRecord ? "Edit" : "Add"}
-                        </Button>
-                      </div>
-                    </TableCell>
-                  )}
-                </TableRow>
+                    <TableRow key={trainee.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <Avatar className="w-8 h-8">
+                            <AvatarFallback>{trainee.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                          </Avatar>
+                          <span className="font-medium">{trainee.name}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>{trainee.email}</TableCell>
+                      <TableCell>{trainee.course}</TableCell>
+                      <TableCell>{trainee.department}</TableCell>
+                      <TableCell>
+                        <Badge className={getStatusColor(trainee.status)}>
+                          {trainee.status.charAt(0).toUpperCase() + trainee.status.slice(1)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{trainee.phone}</TableCell>
+                      {user?.role === "doctor" && (
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleViewMedicalInfo(trainee)}
+                              className="flex items-center gap-1"
+                            >
+                              <Eye className={`w-4 h-4 ${traineesWithRecords.has(trainee.id) ? 'text-blue-500' : ''}`} />
+                              View
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEditMedicalInfo(trainee)}
+                              className="flex items-center gap-1"
+                            >
+                              <Edit className="w-4 h-4" />
+                              {medicalRecord ? "Edit" : "Add"}
+                            </Button>
+                          </div>
+                        </TableCell>
+                      )}
+                    </TableRow>
                   ))
                 )}
               </TableBody>
@@ -832,8 +831,8 @@ const ViewTrainees = () => {
 
               {/* Attachments Section */}
               {medicalRecord.attachments && (() => {
-                const atts = typeof medicalRecord.attachments === 'string' 
-                  ? JSON.parse(medicalRecord.attachments) 
+                const atts = typeof medicalRecord.attachments === 'string'
+                  ? JSON.parse(medicalRecord.attachments)
                   : medicalRecord.attachments;
                 const attachmentList = Array.isArray(atts) ? atts : [];
                 if (attachmentList.length > 0) {
@@ -923,8 +922,8 @@ const ViewTrainees = () => {
                   </div>
                   <div>
                     <Label htmlFor="malaria_test">Malaria Test</Label>
-                    <Select 
-                      value={formData.malaria_test} 
+                    <Select
+                      value={formData.malaria_test}
                       onValueChange={(value) => setFormData({ ...formData, malaria_test: value })}
                     >
                       <SelectTrigger>
@@ -948,8 +947,8 @@ const ViewTrainees = () => {
                   </div>
                   <div>
                     <Label htmlFor="hepatitis_test">Hepatitis Test</Label>
-                    <Select 
-                      value={formData.hepatitis_test} 
+                    <Select
+                      value={formData.hepatitis_test}
                       onValueChange={(value) => setFormData({ ...formData, hepatitis_test: value })}
                     >
                       <SelectTrigger>
@@ -964,8 +963,8 @@ const ViewTrainees = () => {
                   </div>
                   <div>
                     <Label htmlFor="pregnancy_test">Pregnancy Test</Label>
-                    <Select 
-                      value={formData.pregnancy_test} 
+                    <Select
+                      value={formData.pregnancy_test}
                       onValueChange={(value) => setFormData({ ...formData, pregnancy_test: value })}
                     >
                       <SelectTrigger>
@@ -1012,8 +1011,8 @@ const ViewTrainees = () => {
                   </div>
                   <div>
                     <Label htmlFor="blood_type">Blood Group</Label>
-                    <Select 
-                      value={formData.blood_type} 
+                    <Select
+                      value={formData.blood_type}
                       onValueChange={(value) => setFormData({ ...formData, blood_type: value })}
                     >
                       <SelectTrigger>
@@ -1033,8 +1032,8 @@ const ViewTrainees = () => {
                   </div>
                   <div>
                     <Label htmlFor="hiv_status">HIV Status</Label>
-                    <Select 
-                      value={formData.hiv_status} 
+                    <Select
+                      value={formData.hiv_status}
                       onValueChange={(value) => setFormData({ ...formData, hiv_status: value })}
                     >
                       <SelectTrigger>
@@ -1191,9 +1190,9 @@ const ViewTrainees = () => {
                 </div>
               </div>
               <div className="flex justify-end gap-2 pt-4 border-t">
-                <Button 
-                  type="button" 
-                  variant="outline" 
+                <Button
+                  type="button"
+                  variant="outline"
                   onClick={() => {
                     setShowEditDialog(false);
                     setMedicalRecord(null);
@@ -1207,7 +1206,7 @@ const ViewTrainees = () => {
                 >
                   Cancel
                 </Button>
-                <Button 
+                <Button
                   onClick={handleSaveMedicalInfo}
                   disabled={isSaving || !formData.emergency_contact}
                   className="bg-gradient-military"
