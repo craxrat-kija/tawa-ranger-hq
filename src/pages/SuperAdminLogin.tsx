@@ -4,41 +4,18 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CardDescription } from "@/components/ui/card";
 import { RotatingLogo } from "@/components/RotatingLogo";
-import { Lock, Mail, User, Shield, Copy, Check } from "lucide-react";
+import { Lock, Mail, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const SuperAdminLogin = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showCredentials, setShowCredentials] = useState(false);
-  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
   const { superAdminLogin } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-
-  // Super Admin credentials
-  const credentials = [
-    { role: "Super Admin", email: "superadmin@tawa.go.tz", password: "superadmin2024", color: "bg-purple-500/10 border-purple-500/20 text-purple-600 dark:text-purple-400" },
-  ];
-
-  const copyToClipboard = (text: string, index: number) => {
-    navigator.clipboard.writeText(text);
-    setCopiedIndex(index);
-    toast({
-      title: "Copied!",
-      description: "Credentials copied to clipboard",
-    });
-    setTimeout(() => setCopiedIndex(null), 2000);
-  };
-
-  const fillCredentials = (credEmail: string, credPassword: string) => {
-    setEmail(credEmail);
-    setPassword(credPassword);
-    setShowCredentials(false);
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -148,99 +125,6 @@ const SuperAdminLogin = () => {
               Access Super Admin Panel
             </Button>
           </form>
-
-          {/* Credentials Section */}
-          <div className="mt-6 space-y-3">
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full border-purple-500/30 hover:bg-purple-500/10"
-              onClick={() => setShowCredentials(!showCredentials)}
-            >
-              <Shield className="w-4 h-4 mr-2" />
-              {showCredentials ? "Hide" : "Show"} Super Admin Credentials
-            </Button>
-
-            {showCredentials && (
-              <Card className="bg-card/50 border-purple-500/20">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <Shield className="w-4 h-4" />
-                    Super Admin Account
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    Click on the credential to auto-fill the login form
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {credentials.map((cred, index) => (
-                    <div
-                      key={index}
-                      className={`p-3 rounded-lg border cursor-pointer hover:opacity-80 transition-opacity ${cred.color}`}
-                      onClick={() => fillCredentials(cred.email, cred.password)}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <Shield className="w-4 h-4" />
-                            <span className="font-semibold text-sm">{cred.role}</span>
-                          </div>
-                          <div className="text-xs space-y-1">
-                            <div className="flex items-center gap-2">
-                              <Mail className="w-3 h-3" />
-                              <span className="font-mono">{cred.email}</span>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  copyToClipboard(cred.email, index * 2);
-                                }}
-                                className="ml-auto p-1 hover:bg-white/20 rounded"
-                              >
-                                {copiedIndex === index * 2 ? (
-                                  <Check className="w-3 h-3" />
-                                ) : (
-                                  <Copy className="w-3 h-3" />
-                                )}
-                              </button>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Lock className="w-3 h-3" />
-                              <span className="font-mono">{cred.password}</span>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  copyToClipboard(cred.password, index * 2 + 1);
-                                }}
-                                className="ml-auto p-1 hover:bg-white/20 rounded"
-                              >
-                                {copiedIndex === index * 2 + 1 ? (
-                                  <Check className="w-3 h-3" />
-                                ) : (
-                                  <Copy className="w-3 h-3" />
-                                )}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
-          </div>
-
-          {/* Link to regular login */}
-          <div className="mt-6 text-center">
-            <Button
-              type="button"
-              variant="ghost"
-              className="text-sm text-muted-foreground hover:text-foreground"
-              onClick={() => navigate("/login")}
-            >
-              Regular User Login →
-            </Button>
-          </div>
         </div>
 
         {/* Bottom Badge */}
